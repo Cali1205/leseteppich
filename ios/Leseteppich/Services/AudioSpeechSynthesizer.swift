@@ -36,7 +36,7 @@ public final class AudioSpeechSynthesizer: NSObject, SpeechSynthesizing, Observa
                     NSAttributedString.Key(rawValue: AVSpeechSynthesisIPANotationAttribute): ipa
                 ]
             )
-            utterance = AVSpeechUtterance(attributedSpeechString: attributed)
+            utterance = AVSpeechUtterance(attributedString: attributed)
         } else {
             utterance = AVSpeechUtterance(string: tile.spokenText)
         }
