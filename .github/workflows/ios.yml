@@ -3,7 +3,6 @@ name: iOS Build & TestFlight
 on:
   push:
     branches: [main]
-  pull_request:
   workflow_dispatch:
     inputs:
       testflight:
@@ -22,6 +21,7 @@ permissions:
 jobs:
   validate-shared:
     name: Shared JSON & Test-Vektoren prüfen
+    if: github.actor == github.repository_owner
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -30,6 +30,7 @@ jobs:
   ios-build:
     name: iOS Build, Tests & optional TestFlight
     needs: validate-shared
+    if: github.actor == github.repository_owner
     runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.runner || 'xcode-27' }}
     env:
       SIGN: ${{ github.event_name == 'workflow_dispatch' && inputs.testflight }}
