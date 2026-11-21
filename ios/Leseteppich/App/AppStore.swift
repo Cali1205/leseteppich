@@ -17,18 +17,22 @@ public final class AppStore: ObservableObject {
 
     public init(
         contentLoader: ContentLoading = BundleContentLoader(),
-        progressStore: ProgressStoring = LocalProgressStore(),
-        voiceRecorder: ParentVoiceRecorder = ParentVoiceRecorder(),
-        speechRecognizer: OnDeviceSpeechRecognizer = OnDeviceSpeechRecognizer(),
+        progressStore: ProgressStoring? = nil,
+        voiceRecorder: ParentVoiceRecorder? = nil,
+        speechRecognizer: OnDeviceSpeechRecognizer? = nil,
         phoneticMatcher: PhoneticMatcher = PhoneticMatcher()
     ) {
+        let resolvedProgressStore = progressStore ?? LocalProgressStore()
+        let resolvedVoiceRecorder = voiceRecorder ?? ParentVoiceRecorder()
+        let resolvedSpeechRecognizer = speechRecognizer ?? OnDeviceSpeechRecognizer()
+
         self.contentLoader = contentLoader
-        self.progressStore = progressStore
-        self.voiceRecorder = voiceRecorder
-        self.synthesizer = AudioSpeechSynthesizer(voiceRecorder: voiceRecorder)
-        self.speechRecognizer = speechRecognizer
+        self.progressStore = resolvedProgressStore
+        self.voiceRecorder = resolvedVoiceRecorder
+        self.synthesizer = AudioSpeechSynthesizer(voiceRecorder: resolvedVoiceRecorder)
+        self.speechRecognizer = resolvedSpeechRecognizer
         self.phoneticMatcher = phoneticMatcher
-        self.persistedData = progressStore.load()
+        self.persistedData = resolvedProgressStore.load()
 
         reloadBuiltInContent()
     }
