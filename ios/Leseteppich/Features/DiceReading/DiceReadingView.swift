@@ -44,6 +44,9 @@ struct DiceReadingView: View {
                 }
             }
         }
+        .onAppear {
+            viewModel.onAppear()
+        }
         .onDisappear {
             viewModel.stopAudioAndSpeech()
         }
@@ -101,22 +104,24 @@ struct DiceReadingView: View {
                 statusFeedback
 
                 HStack(spacing: 12) {
-                    Button {
-                        viewModel.speakActiveCell()
-                    } label: {
-                        Label("Anhören", systemImage: "speaker.wave.2.fill")
-                            .font(.system(size: 16, weight: .bold, design: .rounded))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .background(Color(.tertiarySystemFill))
-                            .foregroundStyle(.primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    if viewModel.allowAudioHelp {
+                        Button {
+                            viewModel.speakActiveCell()
+                        } label: {
+                            Label("Anhören", systemImage: "speaker.wave.2.fill")
+                                .font(.system(size: 16, weight: .bold, design: .rounded))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(Color(.tertiarySystemFill))
+                                .foregroundStyle(.primary)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
                     }
 
                     Button {
                         viewModel.toggleListening()
                     } label: {
-                        let isListening = viewModel.recognitionStatus == .listening
+                        let isListening = viewModel.recognitionStatus == .listening || viewModel.recognitionStatus == .preparingNext
                         Label(
                             isListening ? "Stopp" : "Vorlesen",
                             systemImage: isListening ? "stop.circle.fill" : "mic.fill"
@@ -183,6 +188,14 @@ struct DiceReadingView: View {
             EmptyView()
         case .listening:
             AudioLevelView(level: viewModel.audioLevel, isListening: true, accentColor: .orange)
+        case .preparingNext:
+            HStack(spacing: 6) {
+                ProgressView()
+                    .tint(.orange)
+                Text("Gleich geht's los…")
+                    .font(.caption.bold())
+                    .foregroundStyle(.orange)
+            }
         case .matched(let transcript):
             Label("Super! „\(transcript)“", systemImage: "checkmark.seal.fill")
                 .font(.subheadline.bold())
@@ -203,7 +216,6 @@ struct DiceReadingView: View {
         let rowsDescending = Array((0..<viewModel.board.rowCount).reversed())
 
         return VStack(spacing: 8) {
-            // Treasure chest header
             VStack(spacing: 2) {
                 Text(viewModel.board.goalEmoji)
                     .font(.system(size: 40))
@@ -213,7 +225,6 @@ struct DiceReadingView: View {
             }
             .padding(.bottom, 4)
 
-            // 6 columns, top row (hardest) down to bottom row (easiest)
             ForEach(rowsDescending, id: \.self) { rowIndex in
                 HStack(spacing: 6) {
                     ForEach(viewModel.board.columns) { column in
@@ -236,7 +247,6 @@ struct DiceReadingView: View {
                 }
             }
 
-            // Dice row at bottom (1..6)
             HStack(spacing: 6) {
                 ForEach(viewModel.board.columns) { column in
                     let isSelectedColumn = viewModel.engine.activeCoordinate?.diceValue == column.diceValue

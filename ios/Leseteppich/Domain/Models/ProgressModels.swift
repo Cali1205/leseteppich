@@ -47,15 +47,37 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var allowManualConfirm: Bool
     public var preferOnDeviceRecognition: Bool
     public var autoAdvanceOnMatch: Bool
+    /// When false (default), the "Anhören" / TTS audio-help controls are hidden from the child.
+    public var allowAudioHelp: Bool
+    /// When true (default), after a recognized sound/word the app automatically listens for the next tile.
+    public var autoListenNextTile: Bool
+    /// Optional identifier of the user-selected German AVSpeechSynthesisVoice.
+    public var selectedVoiceIdentifier: String?
+
+    enum CodingKeys: String, CodingKey {
+        case showSyllableColors
+        case showSyllableArcs
+        case speechRate
+        case strictness
+        case allowManualConfirm
+        case preferOnDeviceRecognition
+        case autoAdvanceOnMatch
+        case allowAudioHelp
+        case autoListenNextTile
+        case selectedVoiceIdentifier
+    }
 
     public init(
         showSyllableColors: Bool = true,
         showSyllableArcs: Bool = true,
-        speechRate: Double = 0.42,
+        speechRate: Double = 0.48,
         strictness: MatchingStrictness = .gentle,
         allowManualConfirm: Bool = true,
         preferOnDeviceRecognition: Bool = true,
-        autoAdvanceOnMatch: Bool = true
+        autoAdvanceOnMatch: Bool = true,
+        allowAudioHelp: Bool = false,
+        autoListenNextTile: Bool = true,
+        selectedVoiceIdentifier: String? = nil
     ) {
         self.showSyllableColors = showSyllableColors
         self.showSyllableArcs = showSyllableArcs
@@ -64,6 +86,23 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.allowManualConfirm = allowManualConfirm
         self.preferOnDeviceRecognition = preferOnDeviceRecognition
         self.autoAdvanceOnMatch = autoAdvanceOnMatch
+        self.allowAudioHelp = allowAudioHelp
+        self.autoListenNextTile = autoListenNextTile
+        self.selectedVoiceIdentifier = selectedVoiceIdentifier
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        showSyllableColors = try container.decodeIfPresent(Bool.self, forKey: .showSyllableColors) ?? true
+        showSyllableArcs = try container.decodeIfPresent(Bool.self, forKey: .showSyllableArcs) ?? true
+        speechRate = try container.decodeIfPresent(Double.self, forKey: .speechRate) ?? 0.48
+        strictness = try container.decodeIfPresent(MatchingStrictness.self, forKey: .strictness) ?? .gentle
+        allowManualConfirm = try container.decodeIfPresent(Bool.self, forKey: .allowManualConfirm) ?? true
+        preferOnDeviceRecognition = try container.decodeIfPresent(Bool.self, forKey: .preferOnDeviceRecognition) ?? true
+        autoAdvanceOnMatch = try container.decodeIfPresent(Bool.self, forKey: .autoAdvanceOnMatch) ?? true
+        allowAudioHelp = try container.decodeIfPresent(Bool.self, forKey: .allowAudioHelp) ?? false
+        autoListenNextTile = try container.decodeIfPresent(Bool.self, forKey: .autoListenNextTile) ?? true
+        selectedVoiceIdentifier = try container.decodeIfPresent(String.self, forKey: .selectedVoiceIdentifier)
     }
 }
 

@@ -15,7 +15,8 @@ struct ParentAreaView: View {
         NavigationStack {
             Form {
                 readingDisplaySection
-                speechAndRecognitionSection
+                audioHelpAndVoiceSection
+                speechRecognitionSection
                 voiceStudioSection
                 customCarpetsSection
                 progressSection
@@ -38,6 +39,7 @@ struct ParentAreaView: View {
                 handleJSONImport(result)
             }
             .onAppear {
+                store.synthesizer.refreshVoices()
                 if selectedStudioCarpetID.isEmpty, let first = store.allCarpets.first {
                     selectedStudioCarpetID = first.id
                 }
@@ -68,24 +70,19 @@ struct ParentAreaView: View {
         }
     }
 
-    private var speechAndRecognitionSection: some View {
+    private var audioHelpAndVoiceSection: some View {
+        AudioHelpSettingsSection(store: store, synthesizer: store.synthesizer)
+    }
+
+    private var speechRecognitionSection: some View {
         Section {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Vorlese-Tempo")
-                    Spacer()
-                    Text(speedLabel(store.settings.speechRate))
-                        .foregroundStyle(.secondary)
-                }
-                Slider(
-                    value: Binding(
-                        get: { store.settings.speechRate },
-                        set: { value in store.updateSettings { $0.speechRate = value } }
-                    ),
-                    in: 0.30...0.55,
-                    step: 0.03
+            Toggle(
+                "Automatisch weiterhören (Freihand-Lesen)",
+                isOn: Binding(
+                    get: { store.settings.autoListenNextTile },
+                    set: { value in store.updateSettings { $0.autoListenNextTile = value } }
                 )
-            }
+            )
 
             Picker(
                 "Erkennungs-Genauigkeit",
@@ -119,9 +116,9 @@ struct ParentAreaView: View {
                 )
             )
         } header: {
-            Text("Sprache & Erkennung")
+            Text("Spracherkennung & Lesefluss")
         } footer: {
-            Text("Hinweis: Bei Einzellauten (z. B. „n“ oder „t“) ist die On-Device-Spracherkennung naturgemäß eingeschränkt. Die manuelle Bestätigung verhindert Frust beim Üben.")
+            Text("Mit „Automatisch weiterhören“ startet das Mikrofon nach jedem erkannten Laut nach einer kurzen Pause automatisch für das nächste Feld – ohne erneut auf den Button drücken zu müssen.")
         }
     }
 
@@ -150,9 +147,9 @@ struct ParentAreaView: View {
                     .foregroundStyle(.red)
             }
         } header: {
-            Text("Eltern-Stimm-Studio (Eigene Laute aufnehmen)")
+            Text("Eltern-Stimm-Studio (Natürlichste Laute)")
         } footer: {
-            Text("Sprich Laute wie „nnn“, „mmm“ oder „sss“ selbst ein. Wenn eine eigene Aufnahme existiert, spielt die App immer deine Stimme statt der Computerstimme ab.")
+            Text("Sprich Laute wie „aaa“, „iii“, „nnn“ oder ganze Wörter selbst ein. Wenn eine eigene Aufnahme existiert, spielt die App immer deine Stimme statt der Computerstimme ab.")
         }
     }
 
@@ -220,12 +217,6 @@ struct ParentAreaView: View {
         }
     }
 
-    private func speedLabel(_ rate: Double) -> String {
-        if rate < 0.37 { return "Sehr langsam" }
-        if rate < 0.46 { return "Langsam" }
-        return "Normal"
-    }
-
     private func handleJSONImport(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url):
@@ -243,6 +234,87 @@ struct ParentAreaView: View {
         case .failure(let error):
             importStatusMessage = "Dateiauswahl abgebrochen: \(error.localizedDescription)"
         }
+    }
+}
+
+private struct AudioHelpSettingsSection: View {
+    @ObservedObject var store: AppStore
+    @ObservedObject var synthesizer: AudioSpeechSynthesizer
+
+    var body: some View {
+        Section {
+            Toggle(
+                "Vorlesehilfe für Kinder anzeigen (Anhören)",
+                isOn: Binding(
+                    get: { store.settings.allowAudioHelp },
+                    set: { value in store.updateSettings { $0.allowAudioHelp = value } }
+                )
+            )
+
+            Picker(
+                "Vorlese-Stimme",
+                selection: Binding(
+                    get: { store.settings.selectedVoiceIdentifier ?? "" },
+                    set: { value in
+                        store.updateSettings { $0.selectedVoiceIdentifier = value.isEmpty ? nil : value }
+                    }
+                )
+            ) {
+                Text("Automatisch (beste installierte)").tag("")
+                ForEach(synthesizer.availableVoices) { voice in
+                    Text(voice.displayLabel).tag(voice.id)
+                }
+            }
+
+            Button {
+                synthesizer.speakText(
+                    "Hallo! Lass uns zusammen den Leseteppich lesen. Nina, Oma, Tomate.",
+                    rate: store.settings.speechRate,
+                    voiceIdentifier: store.settings.selectedVoiceIdentifier
+                )
+            } label: {
+                Label("Ausgewählte Stimme testen", systemImage: "speaker.wave.2.fill")
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Vorlese-Tempo")
+                    Spacer()
+                    Text(speedLabel(store.settings.speechRate))
+                        .foregroundStyle(.secondary)
+                }
+                Slider(
+                    value: Binding(
+                        get: { store.settings.speechRate },
+                        set: { value in store.updateSettings { $0.speechRate = value } }
+                    ),
+                    in: 0.38...0.56,
+                    step: 0.02
+                )
+            }
+
+            if !synthesizer.hasHighQualityVoice {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Tipp für eine viel natürlichere Stimme", systemImage: "sparkles")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.orange)
+                    Text("Auf diesem Gerät ist bisher nur die Standard-Stimme installiert. Öffne in iOS: Einstellungen → Bedienungshilfen → Gesprochene Inhalte (oder Lesen & Sprechen) → Stimmen → Deutsch und lade z. B. „Anna (Premium)“ oder „Petra (Premium)“ herunter. Danach nutzt die App sie automatisch – oder sprich Laute unten im Stimm-Studio selbst ein.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
+        } header: {
+            Text("Vorlesehilfe (App liest vor)")
+        } footer: {
+            Text("Standardmäßig ist die Vorlesehilfe für Kinder ausgeblendet, damit sie Laute und Wörter selbst erlesen. Aktiviere sie nur bei Bedarf zum Lernen neuer Laute.")
+        }
+    }
+
+    private func speedLabel(_ rate: Double) -> String {
+        if rate < 0.43 { return "Langsam" }
+        if rate < 0.51 { return "Natürlich" }
+        return "Flott"
     }
 }
 
@@ -270,7 +342,11 @@ private struct VoiceStudioRow: View {
             Spacer()
 
             Button {
-                store.synthesizer.speak(tile: tile, rate: store.settings.speechRate)
+                store.synthesizer.speak(
+                    tile: tile,
+                    rate: store.settings.speechRate,
+                    voiceIdentifier: store.settings.selectedVoiceIdentifier
+                )
             } label: {
                 Image(systemName: "play.circle.fill")
                     .font(.title2)

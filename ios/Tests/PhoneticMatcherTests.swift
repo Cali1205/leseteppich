@@ -61,4 +61,44 @@ final class PhoneticMatcherTests: XCTestCase {
         let result = matcher.match(hypotheses: ["", "   "], expected: "Oma", strictness: .gentle)
         XCTAssertFalse(result.isMatch)
     }
+
+    func testSinglePhonemeAHandlesGermanASRVariants() {
+        let matcher = PhoneticMatcher()
+        let tile = ReadingTile(
+            id: "c1_01",
+            display: "a",
+            syllables: ["a"],
+            spokenText: "Ah",
+            ipa: "aː",
+            isSinglePhoneme: true,
+            acceptedTranscriptions: ["a", "ah", "aa", "aaa", "aah", "äh", "ha", "ar"]
+        )
+
+        for spoken in ["a", "A", "ah", "aaa", "äh", "ha", "ar"] {
+            let result = matcher.match(hypotheses: [spoken], tile: tile, strictness: .gentle)
+            XCTAssertTrue(result.isMatch, "Expected '\(spoken)' to match single phoneme 'a'")
+        }
+
+        let wrong = matcher.match(hypotheses: ["oh"], tile: tile, strictness: .gentle)
+        XCTAssertFalse(wrong.isMatch)
+    }
+
+    func testLegacyAppSettingsDecodeWithSafeDefaults() throws {
+        let legacyJSON = """
+        {
+          "showSyllableColors": true,
+          "showSyllableArcs": false,
+          "speechRate": 0.42,
+          "strictness": "gentle",
+          "allowManualConfirm": true,
+          "preferOnDeviceRecognition": true,
+          "autoAdvanceOnMatch": true
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: legacyJSON)
+        XCTAssertFalse(decoded.allowAudioHelp)
+        XCTAssertTrue(decoded.autoListenNextTile)
+        XCTAssertNil(decoded.selectedVoiceIdentifier)
+    }
 }

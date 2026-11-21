@@ -14,9 +14,9 @@
       "targetRepetitions": 5,
       "columns": 4,
       "tiles": [
-        { "id": "c1_01", "display": "a", "syllables": ["a"], "spokenText": "aaa", "ipa": "aː", "isSinglePhoneme": true, "acceptedTranscriptions": ["a", "ah", "aa", "ha"] },
-        { "id": "c1_02", "display": "i", "syllables": ["i"], "spokenText": "iii", "ipa": "iː", "isSinglePhoneme": true, "acceptedTranscriptions": ["i", "ih", "ie", "ii"] },
-        { "id": "c1_03", "display": "n", "syllables": ["n"], "spokenText": "nnn", "ipa": "nː", "isSinglePhoneme": true, "acceptedTranscriptions": ["n", "en", "enn", "nnn", "in"] },
+        { "id": "c1_01", "display": "a", "syllables": ["a"], "spokenText": "Ah", "ipa": "aː", "isSinglePhoneme": true, "acceptedTranscriptions": ["a", "ah", "aa", "aaa", "aah", "äh", "ha", "ar"] },
+        { "id": "c1_02", "display": "i", "syllables": ["i"], "spokenText": "Ih", "ipa": "iː", "isSinglePhoneme": true, "acceptedTranscriptions": ["i", "ih", "ie", "ii", "iii", "ieh", "hi"] },
+        { "id": "c1_03", "display": "n", "syllables": ["n"], "spokenText": "nnn", "ipa": "nː", "isSinglePhoneme": true, "acceptedTranscriptions": ["n", "en", "enn", "nn", "nnn", "hm", "hmm", "in"] },
         { "id": "c1_04", "display": "an", "syllables": ["an"], "spokenText": "an", "ipa": "an", "isSinglePhoneme": false, "acceptedTranscriptions": ["an", "ahn", "ann"] },
         { "id": "c1_05", "display": "in", "syllables": ["in"], "spokenText": "in", "ipa": "ɪn", "isSinglePhoneme": false, "acceptedTranscriptions": ["in", "ihn", "inn"] },
         { "id": "c1_06", "display": "na", "syllables": ["na"], "spokenText": "na", "ipa": "naː", "isSinglePhoneme": false, "acceptedTranscriptions": ["na", "nah"] },
@@ -44,7 +44,7 @@
       "targetRepetitions": 5,
       "columns": 4,
       "tiles": [
-        { "id": "c2_01", "display": "o", "syllables": ["o"], "spokenText": "ooo", "ipa": "oː", "isSinglePhoneme": true, "acceptedTranscriptions": ["o", "oh", "oo"] },
+        { "id": "c2_01", "display": "o", "syllables": ["o"], "spokenText": "Oh", "ipa": "oː", "isSinglePhoneme": true, "acceptedTranscriptions": ["o", "oh", "oo", "ooo", "ooh", "ho"] },
         { "id": "c2_02", "display": "on", "syllables": ["on"], "spokenText": "on", "ipa": "ɔn", "isSinglePhoneme": false, "acceptedTranscriptions": ["on", "ohn", "onn"] },
         { "id": "c2_03", "display": "no", "syllables": ["no"], "spokenText": "no", "ipa": "noː", "isSinglePhoneme": false, "acceptedTranscriptions": ["no", "noh"] },
         { "id": "c2_04", "display": "No", "syllables": ["No"], "spokenText": "No", "ipa": "noː", "isSinglePhoneme": false, "acceptedTranscriptions": ["no", "noh"] },

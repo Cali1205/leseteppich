@@ -81,6 +81,46 @@
       "spoken": ["Dina"],
       "strictness": "strict",
       "shouldMatch": false
+    },
+    {
+      "name": "Single vowel a recognized as elongated ah",
+      "expected": "a",
+      "accepted": [],
+      "spoken": ["ah"],
+      "strictness": "normal",
+      "shouldMatch": true
+    },
+    {
+      "name": "Single vowel a recognized as German ASR hesitation aeh in gentle mode",
+      "expected": "a",
+      "accepted": [],
+      "spoken": ["äh"],
+      "strictness": "gentle",
+      "shouldMatch": true
+    },
+    {
+      "name": "Single vowel a recognized as triple aaa",
+      "expected": "a",
+      "accepted": [],
+      "spoken": ["aah"],
+      "strictness": "normal",
+      "shouldMatch": true
+    },
+    {
+      "name": "Single vowel a must not match clearly different vowel o",
+      "expected": "a",
+      "accepted": [],
+      "spoken": ["oh"],
+      "strictness": "gentle",
+      "shouldMatch": false
+    },
+    {
+      "name": "Single consonant n recognized as en or nnn",
+      "expected": "n",
+      "accepted": [],
+      "spoken": ["en"],
+      "strictness": "normal",
+      "shouldMatch": true
     }
   ]
 }

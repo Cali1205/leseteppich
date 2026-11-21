@@ -6,6 +6,34 @@ import Foundation
 public struct PhoneticMatcher: Sendable {
     public init() {}
 
+    /// Built-in German ASR transcription equivalents for isolated single phonemes
+    /// (so both built-in and parent-created custom carpets recognize single sounds like "a", "i", "n", "o").
+    private static let singlePhonemeNormalVariants: [String: [String]] = [
+        "a": ["a", "ah", "aa", "aaa", "aah", "ha"],
+        "e": ["e", "eh", "ee", "eee", "eeh"],
+        "i": ["i", "ih", "ie", "ii", "iii", "ieh", "hi"],
+        "o": ["o", "oh", "oo", "ooo", "ooh", "ho"],
+        "u": ["u", "uh", "uu", "uuu", "uuh", "hu"],
+        "n": ["n", "en", "enn", "nn", "nnn", "in"],
+        "m": ["m", "em", "emm", "mm", "mmm", "im"],
+        "l": ["l", "el", "ell", "ll", "lll"],
+        "s": ["s", "es", "ess", "ss", "sss"],
+        "t": ["t", "te", "tee", "tt"],
+        "p": ["p", "pe", "pee", "pp"]
+    ]
+
+    /// Additional breathy/hesitation ASR artifacts allowed in `.gentle` (beginner) mode.
+    private static let singlePhonemeGentleExtras: [String: [String]] = [
+        "a": ["äh", "aeh", "ar", "ab"],
+        "i": ["ich", "di", "die"],
+        "n": ["hm", "hmm", "ähm", "ne"],
+        "m": ["hm", "hmm", "ähm", "ma"],
+        "s": ["ist", "se", "ze"],
+        "l": ["la", "le"],
+        "t": ["de", "ti", "ta"],
+        "p": ["be", "pa", "pi"]
+    ]
+
     public func match(
         hypotheses: [String],
         tile: ReadingTile,
@@ -35,22 +63,37 @@ public struct PhoneticMatcher: Sendable {
             )
         }
 
-        var candidateTargets: [String] = [expected] + accepted
-        candidateTargets = Array(Set(candidateTargets.map { normalizeBasic($0) }.filter { !$0.isEmpty }))
+        var rawTargets: [String] = [expected] + accepted
 
-        // 1. Exact normalized or spaceless match
+        // Automatically enrich 1-letter German phonemes so custom carpets also work reliably.
+        let normalizedExpected = normalizeBasic(expected)
+        if normalizedExpected.count == 1 {
+            if let normalExtras = Self.singlePhonemeNormalVariants[normalizedExpected] {
+                rawTargets.append(contentsOf: normalExtras)
+            }
+            if strictness == .gentle, let gentleExtras = Self.singlePhonemeGentleExtras[normalizedExpected] {
+                rawTargets.append(contentsOf: gentleExtras)
+            }
+        }
+
+        let candidateTargets = Array(Set(rawTargets.map { normalizeBasic($0) }.filter { !$0.isEmpty }))
+
+        // 1. Exact normalized or spaceless match (also checking individual tokens for short filler prefixes)
         for rawHyp in hypotheses {
             let hyp = normalizeBasic(rawHyp)
-            let hypCompact = hyp.replacingOccurrences(of: " ", with: "")
+            let hypParts = candidateSubstrings(from: hyp)
             for target in candidateTargets {
                 let targetCompact = target.replacingOccurrences(of: " ", with: "")
-                if hyp == target || hypCompact == targetCompact {
-                    return RecognitionMatchResult(
-                        isMatch: true,
-                        confidence: 1.0,
-                        matchedHypothesis: rawHyp,
-                        reason: "exact"
-                    )
+                for part in hypParts {
+                    let partCompact = part.replacingOccurrences(of: " ", with: "")
+                    if part == target || partCompact == targetCompact {
+                        return RecognitionMatchResult(
+                            isMatch: true,
+                            confidence: 1.0,
+                            matchedHypothesis: rawHyp,
+                            reason: "exact"
+                        )
+                    }
                 }
             }
         }
@@ -133,7 +176,7 @@ public struct PhoneticMatcher: Sendable {
 
     /// Converts German text into a simplified phonetic key for child ASR comparison.
     public func phoneticKey(of text: String, softConsonants: Bool) -> String {
-        var s = normalizeBasic(text).replacingOccurrences(of: " ", with: "")
+        var s = collapseRepeats(normalizeBasic(text).replacingOccurrences(of: " ", with: ""))
         guard !s.isEmpty else { return "" }
 
         let replacements: [(String, String)] = [
@@ -175,10 +218,13 @@ public struct PhoneticMatcher: Sendable {
             }
         }
 
-        // Collapse repeated adjacent characters (e.g. "tasse" -> "tase", "nanna" -> "nana")
+        return collapseRepeats(s)
+    }
+
+    private func collapseRepeats(_ input: String) -> String {
         var collapsed = ""
         var previous: Character?
-        for ch in s {
+        for ch in input {
             if ch != previous {
                 collapsed.append(ch)
                 previous = ch

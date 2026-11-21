@@ -17,6 +17,7 @@ public struct RecognitionMatchResult: Equatable, Sendable {
 public enum SpeechRecognitionStatus: Equatable, Sendable {
     case idle
     case listening
+    case preparingNext
     case matched(transcript: String)
     case retryNeeded(heard: String?)
     case unavailable(message: String)

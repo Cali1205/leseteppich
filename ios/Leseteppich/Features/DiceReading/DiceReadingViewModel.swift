@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 @MainActor
 final class DiceReadingViewModel: ObservableObject {
@@ -11,6 +12,7 @@ final class DiceReadingViewModel: ObservableObject {
     @Published var showWinnerCelebration: Bool = false
 
     private let store: AppStore
+    private var pendingTask: Task<Void, Never>?
 
     init(board: DiceBoard, store: AppStore) {
         self.engine = DiceGameEngine(board: board, twoPlayerMode: false)
@@ -19,7 +21,14 @@ final class DiceReadingViewModel: ObservableObject {
 
     var board: DiceBoard { engine.board }
     var settings: AppSettings { store.settings }
+    var allowAudioHelp: Bool { store.settings.allowAudioHelp }
     var activeCell: DiceCell? { engine.activeCell }
+
+    func onAppear() {
+        Task {
+            await prepareBoardVocabulary()
+        }
+    }
 
     func setTwoPlayerMode(_ enabled: Bool) {
         stopAudioAndSpeech()
@@ -34,16 +43,24 @@ final class DiceReadingViewModel: ObservableObject {
         recognitionStatus = .idle
         isRolling = true
 
-        Task { @MainActor [weak self] in
+        pendingTask = Task { @MainActor [weak self] in
             guard let self else { return }
             for _ in 0..<7 {
                 self.displayedDiceFace = Int.random(in: 1...6)
                 try? await Task.sleep(for: .milliseconds(65))
+                if Task.isCancelled { return }
             }
             if let coord = self.engine.roll() {
                 self.displayedDiceFace = coord.diceValue
             }
             self.isRolling = false
+
+            if self.settings.autoListenNextTile, self.engine.activeCell != nil {
+                self.recognitionStatus = .preparingNext
+                try? await Task.sleep(for: .milliseconds(550))
+                guard !Task.isCancelled else { return }
+                self.startListeningForActiveCell()
+            }
         }
     }
 
@@ -55,41 +72,23 @@ final class DiceReadingViewModel: ObservableObject {
     }
 
     func speakActiveCell() {
-        guard let cell = engine.activeCell else { return }
-        store.speechRecognizer.stopListening()
+        guard allowAudioHelp, let cell = engine.activeCell else { return }
+        stopAudioAndSpeech()
         recognitionStatus = .idle
-        store.synthesizer.speak(tile: cell.asReadingTile, rate: settings.speechRate)
+        store.synthesizer.speak(
+            tile: cell.asReadingTile,
+            rate: settings.speechRate,
+            voiceIdentifier: settings.selectedVoiceIdentifier
+        )
     }
 
     func toggleListening() {
-        if store.speechRecognizer.isListening {
-            store.speechRecognizer.stopListening()
+        if store.speechRecognizer.isListening || recognitionStatus == .preparingNext {
+            stopAudioAndSpeech()
             recognitionStatus = .idle
             return
         }
-
-        guard let cell = engine.activeCell else { return }
-        store.synthesizer.stop()
-        recognitionStatus = .listening
-
-        let tile = cell.asReadingTile
-        let contextualWords = Array(Set([cell.spokenText, cell.display] + cell.acceptedTranscriptions))
-
-        Task {
-            await store.speechRecognizer.startListening(
-                contextualWords: contextualWords,
-                preferOnDevice: settings.preferOnDeviceRecognition,
-                onHypotheses: { [weak self] hypotheses, isFinal in
-                    self?.handleHypotheses(hypotheses, isFinal: isFinal, for: tile)
-                },
-                onAudioLevel: { [weak self] level in
-                    self?.audioLevel = level
-                },
-                onError: { [weak self] message in
-                    self?.recognitionStatus = .unavailable(message: message)
-                }
-            )
-        }
+        startListeningForActiveCell()
     }
 
     func confirmActiveCell() {
@@ -110,9 +109,38 @@ final class DiceReadingViewModel: ObservableObject {
     }
 
     func stopAudioAndSpeech() {
+        pendingTask?.cancel()
+        pendingTask = nil
         store.speechRecognizer.stopListening()
         store.synthesizer.stop()
         audioLevel = 0.0
+    }
+
+    private func startListeningForActiveCell() {
+        guard let cell = engine.activeCell else { return }
+        store.synthesizer.stop()
+        recognitionStatus = .listening
+
+        let tile = cell.asReadingTile
+        let contextualWords = Array(Set([cell.spokenText, cell.display] + cell.acceptedTranscriptions))
+        let isShort = !cell.spokenText.contains(" ")
+
+        Task {
+            await store.speechRecognizer.startListening(
+                contextualWords: contextualWords,
+                preferOnDevice: settings.preferOnDeviceRecognition,
+                shortUtterance: isShort,
+                onHypotheses: { [weak self] hypotheses, isFinal in
+                    self?.handleHypotheses(hypotheses, isFinal: isFinal, for: tile)
+                },
+                onAudioLevel: { [weak self] level in
+                    self?.audioLevel = level
+                },
+                onError: { [weak self] message in
+                    self?.recognitionStatus = .unavailable(message: message)
+                }
+            )
+        }
     }
 
     private func handleHypotheses(_ hypotheses: [String], isFinal: Bool, for tile: ReadingTile) {
@@ -126,9 +154,16 @@ final class DiceReadingViewModel: ObservableObject {
 
         if result.isMatch {
             store.speechRecognizer.stopListening()
+            audioLevel = 0.0
             recognitionStatus = .matched(transcript: result.matchedHypothesis ?? tile.spokenText)
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(550))
+
+            let feedback = UINotificationFeedbackGenerator()
+            feedback.notificationOccurred(.success)
+
+            pendingTask?.cancel()
+            pendingTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(600))
+                guard !Task.isCancelled else { return }
                 self?.confirmActiveCell()
             }
             return
@@ -137,5 +172,16 @@ final class DiceReadingViewModel: ObservableObject {
         if isFinal {
             recognitionStatus = .retryNeeded(heard: hypotheses.first)
         }
+    }
+
+    private func prepareBoardVocabulary() async {
+        var phrases: [String] = []
+        for column in board.columns {
+            for cell in column.cells {
+                phrases.append(cell.spokenText)
+                phrases.append(contentsOf: cell.acceptedTranscriptions)
+            }
+        }
+        await store.speechRecognizer.prepareCustomVocabulary(phrases: phrases)
     }
 }

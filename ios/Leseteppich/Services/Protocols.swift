@@ -8,9 +8,9 @@ public protocol ContentLoading: Sendable {
 @MainActor
 public protocol SpeechSynthesizing: AnyObject {
     var isSpeaking: Bool { get }
-    func speak(tile: ReadingTile, rate: Double)
-    func speakSyllable(_ syllable: String, rate: Double)
-    func speakText(_ text: String, rate: Double)
+    func speak(tile: ReadingTile, rate: Double, voiceIdentifier: String?)
+    func speakSyllable(_ syllable: String, rate: Double, voiceIdentifier: String?)
+    func speakText(_ text: String, rate: Double, voiceIdentifier: String?)
     func stop()
 }
 
@@ -18,9 +18,11 @@ public protocol SpeechSynthesizing: AnyObject {
 public protocol SpeechRecognizing: AnyObject {
     var isListening: Bool { get }
     var audioLevel: Double { get }
+    func prepareCustomVocabulary(phrases: [String]) async
     func startListening(
         contextualWords: [String],
         preferOnDevice: Bool,
+        shortUtterance: Bool,
         onHypotheses: @escaping @MainActor ([String], Bool) -> Void,
         onAudioLevel: @escaping @MainActor (Double) -> Void,
         onError: @escaping @MainActor (String) -> Void

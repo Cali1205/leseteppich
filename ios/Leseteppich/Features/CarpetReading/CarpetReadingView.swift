@@ -14,7 +14,9 @@ struct CarpetReadingView: View {
         ZStack {
             ScrollView {
                 VStack(spacing: 18) {
-                    modePicker
+                    if viewModel.allowAudioHelp {
+                        modePicker
+                    }
                     focusCard(accent: accent)
                     carpetGrid(accent: accent)
                     repetitionsFooter(accent: accent)
@@ -47,6 +49,9 @@ struct CarpetReadingView: View {
                 }
                 .accessibilityLabel("Leseteppich neu starten")
             }
+        }
+        .onAppear {
+            viewModel.onAppear()
         }
         .onDisappear {
             viewModel.stopAudioAndSpeech()
@@ -86,19 +91,19 @@ struct CarpetReadingView: View {
                     }
                 }
 
-                // Interactive large Silbenschrift display (tap individual syllables to hear them!)
+                // Interactive large Silbenschrift display (tap individual syllables only when audio help is enabled)
                 SyllableTextView(
                     syllables: tile.syllables,
                     fontSize: 64,
                     showColors: viewModel.settings.showSyllableColors,
                     showArcs: viewModel.settings.showSyllableArcs,
-                    onTapSyllable: { syllable in
+                    onTapSyllable: viewModel.allowAudioHelp ? { syllable in
                         viewModel.speakSyllable(syllable)
-                    }
+                    } : nil
                 )
                 .padding(.vertical, 10)
 
-                if tile.syllables.count > 1 {
+                if viewModel.allowAudioHelp && tile.syllables.count > 1 {
                     Text("Tipp: Tippe auf eine einzelne Silbe, um sie langsam zu hören.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -107,40 +112,41 @@ struct CarpetReadingView: View {
                 statusBanner(accent: accent)
 
                 HStack(spacing: 14) {
-                    // Vorlesen / Anhören button
-                    Button {
-                        viewModel.speakCurrentTile()
-                    } label: {
-                        Label("Anhören", systemImage: "speaker.wave.2.fill")
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(Color(.tertiarySystemFill))
-                            .foregroundStyle(.primary)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    if viewModel.allowAudioHelp {
+                        Button {
+                            viewModel.speakCurrentTile()
+                        } label: {
+                            Label("Anhören", systemImage: "speaker.wave.2.fill")
+                                .font(.system(size: 18, weight: .bold, design: .rounded))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(Color(.tertiarySystemFill))
+                                .foregroundStyle(.primary)
+                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
                     }
 
-                    if viewModel.mode == .read {
-                        // Mikrofon button
+                    if !viewModel.allowAudioHelp || viewModel.mode == .read {
                         Button {
                             viewModel.toggleListening()
                         } label: {
-                            let isListening = viewModel.recognitionStatus == .listening
+                            let isActive = viewModel.isMicrophoneFlowActive
                             Label(
-                                isListening ? "Stopp" : "Vorlesen",
-                                systemImage: isListening ? "stop.circle.fill" : "mic.fill"
+                                isActive ? "Pause" : "Vorlesen",
+                                systemImage: isActive ? "stop.circle.fill" : "mic.fill"
                             )
                             .font(.system(size: 18, weight: .bold, design: .rounded))
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(isListening ? Color.red : accent)
+                            .background(isActive ? Color.red : accent)
                             .foregroundStyle(.white)
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
                     }
                 }
 
-                if viewModel.mode == .read && (viewModel.settings.allowManualConfirm || viewModel.engine.failedAttemptsOnCurrentTile >= 2) {
+                if (!viewModel.allowAudioHelp || viewModel.mode == .read)
+                    && (viewModel.settings.allowManualConfirm || viewModel.engine.failedAttemptsOnCurrentTile >= 2) {
                     Button {
                         viewModel.confirmCurrentTileManually()
                     } label: {
@@ -170,6 +176,15 @@ struct CarpetReadingView: View {
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(accent)
             }
+        case .preparingNext:
+            HStack(spacing: 8) {
+                ProgressView()
+                    .tint(accent)
+                Text("Nächster Laut – mach dich bereit…")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(accent)
+            }
+            .padding(.vertical, 6)
         case .matched(let transcript):
             Label("Super! Erkannt: „\(transcript)“", systemImage: "checkmark.seal.fill")
                 .font(.system(size: 16, weight: .bold, design: .rounded))
@@ -177,10 +192,14 @@ struct CarpetReadingView: View {
                 .padding(.vertical, 4)
         case .retryNeeded(let heard):
             VStack(spacing: 4) {
-                Text("Fast! Probier es noch einmal oder hör es dir kurz an.")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.orange)
-                    .multilineTextAlignment(.center)
+                Text(
+                    viewModel.allowAudioHelp
+                        ? "Fast! Probier es noch einmal oder hör es dir kurz an."
+                        : "Fast! Probier es noch einmal!"
+                )
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+                .foregroundStyle(.orange)
+                .multilineTextAlignment(.center)
                 if let heard, !heard.isEmpty {
                     Text("(Gehört: „\(heard)“)")
                         .font(.caption)
