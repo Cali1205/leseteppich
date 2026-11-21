@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "language": "de-DE",
+  "boards": [
+    {
+      "id": "dice_board_01_schatzsuche",
+      "title": "Würfellesen – Schatzsuche",
+      "subtitle": "Laute, Silben, Wörter & erste Bildsätze",
+      "goalEmoji": "🏆",
+      "goalTitle": "Schatz",
+      "columns": [
+        {
+          "diceValue": 1,
+          "cells": [
+            { "id": "d1_c1_r1", "display": "Ti", "syllables": ["Ti"], "spokenText": "Ti", "acceptedTranscriptions": ["ti", "tie", "die", "tea"] },
+            { "id": "d1_c1_r2", "display": "am", "syllables": ["am"], "spokenText": "am", "acceptedTranscriptions": ["am", "ahm"] },
+            { "id": "d1_c1_r3", "display": "Sa lat", "syllables": ["Sa", "lat"], "spokenText": "Salat", "acceptedTranscriptions": ["salat", "sa lat"] },
+            { "id": "d1_c1_r4", "display": "Tal", "syllables": ["Tal"], "spokenText": "Tal", "acceptedTranscriptions": ["tal", "thal"] },
+            { "id": "d1_c1_r5", "display": "Tim ist im Tal.", "syllables": ["Tim ist im Tal."], "spokenText": "Tim ist im Tal.", "acceptedTranscriptions": ["tim ist im tal"] },
+            {
+              "id": "d1_c1_r6",
+              "display": "Mia ist im 🏠",
+              "syllables": ["Mia ist im 🏠"],
+              "spokenText": "Mia ist im Haus.",
+              "rebusSegments": [
+                { "text": "Mia ist im " },
+                { "emoji": "🏠", "spokenWord": "Haus" }
+              ],
+              "acceptedTranscriptions": ["mia ist im haus", "mia ist im häuschen"]
+            },
+            { "id": "d1_c1_r7", "display": "La li lo", "syllables": ["La", " li", " lo"], "spokenText": "La li lo", "acceptedTranscriptions": ["la li lo", "lalilo", "la li lu"] }
+          ]
+        },
+        {
+          "diceValue": 2,
+          "cells": [
+            { "id": "d1_c2_r1", "display": "la", "syllables": ["la"], "spokenText": "la", "acceptedTranscriptions": ["la", "lah"] },
+            { "id": "d1_c2_r2", "display": "im", "syllables": ["im"], "spokenText": "im", "acceptedTranscriptions": ["im", "ihm"] },
+            { "id": "d1_c2_r3", "display": "Ma ma", "syllables": ["Ma", "ma"], "spokenText": "Mama", "acceptedTranscriptions": ["mama", "ma ma"] },
+            { "id": "d1_c2_r4", "display": "alt", "syllables": ["alt"], "spokenText": "alt", "acceptedTranscriptions": ["alt", "ald"] },
+            {
+              "id": "d1_c2_r5",
+              "display": "Oma ist am 🌳",
+              "syllables": ["Oma ist am 🌳"],
+              "spokenText": "Oma ist am Baum.",
+              "rebusSegments": [
+                { "text": "Oma ist am " },
+                { "emoji": "🌳", "spokenWord": "Baum" }
+              ],
+              "acceptedTranscriptions": ["oma ist am baum", "oma ist im baum"]
+            },
+            {
+              "id": "d1_c2_r6",
+              "display": "Nina ist am 🌳",
+              "syllables": ["Nina ist am 🌳"],
+              "spokenText": "Nina ist am Baum.",
+              "rebusSegments": [
+                { "text": "Nina ist am " },
+                { "emoji": "🌳", "spokenWord": "Baum" }
+              ],
+              "acceptedTranscriptions": ["nina ist am baum"]
+            },
+            { "id": "d1_c2_r7", "display": "Mo ma li", "syllables": ["Mo", " ma", " li"], "spokenText": "Mo ma li", "acceptedTranscriptions": ["mo ma li", "momali"] }
+          ]
+        },
+        {
+          "diceValue": 3,
+          "cells": [
+            { "id": "d1_c3_r1", "display": "sa", "syllables": ["sa"], "spokenText": "sa", "acceptedTranscriptions": ["sa", "sah", "za"] },
+            { "id": "d1_c3_r2", "display": "los", "syllables": ["los"], "spokenText": "los", "acceptedTranscriptions": ["los", "loss"] },
+            { "id": "d1_c3_r3", "display": "O ma", "syllables": ["O", "ma"], "spokenText": "Oma", "acceptedTranscriptions": ["oma", "o ma"] },
+            { "id": "d1_c3_r4", "display": "ist", "syllables": ["ist"], "spokenText": "ist", "acceptedTranscriptions": ["ist", "isst"] },
+            { "id": "d1_c3_r5", "display": "Lass Mama los!", "syllables": ["Lass Mama los!"], "spokenText": "Lass Mama los!", "acceptedTranscriptions": ["lass mama los", "las mama los"] },
+            { "id": "d1_c3_r6", "display": "Lina am Ast", "syllables": ["Lina am Ast"], "spokenText": "Lina am Ast.", "acceptedTranscriptions": ["lina am ast"] },
+            { "id": "d1_c3_r7", "display": "Si sa so", "syllables": ["Si", " sa", " so"], "spokenText": "Si sa so", "acceptedTranscriptions": ["si sa so", "sisaso", "sie sa so"] }
+          ]
+        },
+        {
+          "diceValue": 4,
+          "cells": [
+            { "id": "d1_c4_r1", "display": "Ma", "syllables": ["Ma"], "spokenText": "Ma", "acceptedTranscriptions": ["ma", "mah"] },
+            { "id": "d1_c4_r2", "display": "als", "syllables": ["als"], "spokenText": "als", "acceptedTranscriptions": ["als"] },
+            { "id": "d1_c4_r3", "display": "Ma mi", "syllables": ["Ma", "mi"], "spokenText": "Mami", "acceptedTranscriptions": ["mami", "mammi", "ma mi"] },
+            { "id": "d1_c4_r4", "display": "Ast", "syllables": ["Ast"], "spokenText": "Ast", "acceptedTranscriptions": ["ast"] },
+            {
+              "id": "d1_c4_r5",
+              "display": "Tim ❤️ Salat.",
+              "syllables": ["Tim ❤️ Salat."],
+              "spokenText": "Tim mag Salat.",
+              "rebusSegments": [
+                { "text": "Tim " },
+                { "emoji": "❤️", "spokenWord": "mag" },
+                { "text": " Salat." }
+              ],
+              "acceptedTranscriptions": ["tim mag salat", "tim liebt salat"]
+            },
+            { "id": "d1_c4_r6", "display": "Oma ist nett.", "syllables": ["Oma ist nett."], "spokenText": "Oma ist nett.", "acceptedTranscriptions": ["oma ist nett", "oma ist net"] },
+            { "id": "d1_c4_r7", "display": "Ta la mo", "syllables": ["Ta", " la", " mo"], "spokenText": "Ta la mo", "acceptedTranscriptions": ["ta la mo", "talamo"] }
+          ]
+        },
+        {
+          "diceValue": 5,
+          "cells": [
+            { "id": "d1_c5_r1", "display": "Ta", "syllables": ["Ta"], "spokenText": "Ta", "acceptedTranscriptions": ["ta", "tah", "da"] },
+            { "id": "d1_c5_r2", "display": "mal", "syllables": ["mal"], "spokenText": "mal", "acceptedTranscriptions": ["mal", "mahl"] },
+            { "id": "d1_c5_r3", "display": "O li", "syllables": ["O", "li"], "spokenText": "Oli", "acceptedTranscriptions": ["oli", "olli", "o li"] },
+            { "id": "d1_c5_r4", "display": "mit", "syllables": ["mit"], "spokenText": "mit", "acceptedTranscriptions": ["mit", "mitt"] },
+            {
+              "id": "d1_c5_r5",
+              "display": "Lina am 🚲",
+              "syllables": ["Lina am 🚲"],
+              "spokenText": "Lina am Rad.",
+              "rebusSegments": [
+                { "text": "Lina am " },
+                { "emoji": "🚲", "spokenWord": "Rad" }
+              ],
+              "acceptedTranscriptions": ["lina am rad", "lina am fahrrad"]
+            },
+            {
+              "id": "d1_c5_r6",
+              "display": "Oli ist im 🛏️",
+              "syllables": ["Oli ist im 🛏️"],
+              "spokenText": "Oli ist im Bett.",
+              "rebusSegments": [
+                { "text": "Oli ist im " },
+                { "emoji": "🛏️", "spokenWord": "Bett" }
+              ],
+              "acceptedTranscriptions": ["oli ist im bett", "olli ist im bett"]
+            },
+            { "id": "d1_c5_r7", "display": "So la si", "syllables": ["So", " la", " si"], "spokenText": "So la si", "acceptedTranscriptions": ["so la si", "solasi", "so la sie"] }
+          ]
+        },
+        {
+          "diceValue": 6,
+          "cells": [
+            { "id": "d1_c6_r1", "display": "Li", "syllables": ["Li"], "spokenText": "Li", "acceptedTranscriptions": ["li", "lie", "lee"] },
+            { "id": "d1_c6_r2", "display": "Ton", "syllables": ["Ton"], "spokenText": "Ton", "acceptedTranscriptions": ["ton", "thon"] },
+            { "id": "d1_c6_r3", "display": "La ma", "syllables": ["La", "ma"], "spokenText": "Lama", "acceptedTranscriptions": ["lama", "la ma"] },
+            { "id": "d1_c6_r4", "display": "Tim", "syllables": ["Tim"], "spokenText": "Tim", "acceptedTranscriptions": ["tim", "timm"] },
+            {
+              "id": "d1_c6_r5",
+              "display": "Mona ❤️ lila.",
+              "syllables": ["Mona ❤️ lila."],
+              "spokenText": "Mona mag lila.",
+              "rebusSegments": [
+                { "text": "Mona " },
+                { "emoji": "❤️", "spokenWord": "mag" },
+                { "text": " lila." }
+              ],
+              "acceptedTranscriptions": ["mona mag lila", "mona liebt lila"]
+            },
+            { "id": "d1_c6_r6", "display": "Mila und Oli", "syllables": ["Mila und Oli"], "spokenText": "Mila und Oli", "acceptedTranscriptions": ["mila und oli", "mila und olli"] },
+            { "id": "d1_c6_r7", "display": "O la la", "syllables": ["O", " la", " la"], "spokenText": "O la la", "acceptedTranscriptions": ["o la la", "oh la la", "olala"] }
+          ]
+        }
+      ]
+    }
+  ]
+}

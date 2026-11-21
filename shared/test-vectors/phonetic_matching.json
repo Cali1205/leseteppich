@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "description": "Shared platform-independent test vectors for PhoneticMatcher (verified by iOS XCTest and future Android JUnit).",
+  "cases": [
+    {
+      "name": "Exact match simple syllable",
+      "expected": "Nina",
+      "accepted": ["nina", "niena"],
+      "spoken": ["Nina"],
+      "strictness": "normal",
+      "shouldMatch": true
+    },
+    {
+      "name": "Homophone lengthening ie vs i",
+      "expected": "ni",
+      "accepted": ["ni", "nie"],
+      "spoken": ["nie"],
+      "strictness": "normal",
+      "shouldMatch": true
+    },
+    {
+      "name": "Split syllable transcription from ASR",
+      "expected": "Nani",
+      "accepted": ["nani"],
+      "spoken": ["Na nie"],
+      "strictness": "normal",
+      "shouldMatch": true
+    },
+    {
+      "name": "Double consonant normalization",
+      "expected": "Tasse",
+      "accepted": [],
+      "spoken": ["Tase"],
+      "strictness": "normal",
+      "shouldMatch": true
+    },
+    {
+      "name": "Alternative hypothesis in second position matches",
+      "expected": "Lama",
+      "accepted": [],
+      "spoken": ["Drama", "Lahma"],
+      "strictness": "normal",
+      "shouldMatch": true
+    },
+    {
+      "name": "Rebus sentence accepted variant",
+      "expected": "Tim mag Salat.",
+      "accepted": ["tim mag salat", "tim liebt salat"],
+      "spoken": ["Tim liebt Salat"],
+      "strictness": "normal",
+      "shouldMatch": true
+    },
+    {
+      "name": "Clearly different word should not match",
+      "expected": "Tomate",
+      "accepted": [],
+      "spoken": ["Esel"],
+      "strictness": "gentle",
+      "shouldMatch": false
+    },
+    {
+      "name": "Different short syllable should not match",
+      "expected": "ma",
+      "accepted": ["ma", "mah"],
+      "spoken": ["so"],
+      "strictness": "gentle",
+      "shouldMatch": false
+    },
+    {
+      "name": "Gentle strictness allows minor child consonant voicing t/d",
+      "expected": "Tina",
+      "accepted": [],
+      "spoken": ["Dina"],
+      "strictness": "gentle",
+      "shouldMatch": true
+    },
+    {
+      "name": "Strict strictness rejects voiced substitution when not in alias list",
+      "expected": "Tina",
+      "accepted": [],
+      "spoken": ["Dina"],
+      "strictness": "strict",
+      "shouldMatch": false
+    }
+  ]
+}

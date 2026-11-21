@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Cali1205/leseteppich/shared/schema/leseteppich.schema.json",
+  "title": "Leseteppich Content Pack",
+  "description": "Plattformunabhängiges Datenformat für deutsche Leseteppiche (1. Klasse) für iOS (Swift) und Android (Kotlin).",
+  "type": "object",
+  "required": ["schemaVersion", "language", "carpets"],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2}-[A-Z]{2}$",
+      "examples": ["de-DE"]
+    },
+    "carpets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/carpet"
+      }
+    }
+  },
+  "$defs": {
+    "carpet": {
+      "type": "object",
+      "required": ["id", "order", "title", "focusLetters", "motifEmoji", "motifName", "accentHex", "targetRepetitions", "columns", "tiles"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "order": { "type": "integer", "minimum": 1 },
+        "title": { "type": "string", "minLength": 1 },
+        "subtitle": { "type": "string" },
+        "focusLetters": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "motifEmoji": { "type": "string", "minLength": 1 },
+        "motifName": { "type": "string", "minLength": 1 },
+        "accentHex": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "targetRepetitions": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "columns": { "type": "integer", "minimum": 2, "maximum": 6 },
+        "tiles": {
+          "type": "array",
+          "minItems": 4,
+          "items": { "$ref": "#/$defs/tile" }
+        }
+      }
+    },
+    "tile": {
+      "type": "object",
+      "required": ["id", "display", "syllables", "spokenText"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "display": { "type": "string", "minLength": 1 },
+        "syllables": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1
+        },
+        "spokenText": { "type": "string", "minLength": 1 },
+        "ipa": { "type": "string" },
+        "isSinglePhoneme": { "type": "boolean", "default": false },
+        "acceptedTranscriptions": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}
