@@ -100,7 +100,7 @@ public final class OnDeviceSpeechRecognizer: ObservableObject {
                 }
             }.value
 
-            guard let self, let compiledConfig, self.desiredVocabularyKey == vocabKey else { return }
+            guard let compiledConfig, self.desiredVocabularyKey == vocabKey else { return }
             self.customLMConfig = compiledConfig
             self.preparedVocabularyKey = vocabKey
         }
