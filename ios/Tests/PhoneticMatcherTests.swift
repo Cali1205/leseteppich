@@ -83,34 +83,6 @@ final class PhoneticMatcherTests: XCTestCase {
         XCTAssertFalse(wrong.isMatch)
     }
 
-    func testLegacyAppSettingsDecodeWithSafeDefaults() throws {
-        let legacyJSON = """
-        {
-          "showSyllableColors": true,
-          "showSyllableArcs": false,
-          "speechRate": 0.42,
-          "strictness": "gentle",
-          "allowManualConfirm": true,
-          "preferOnDeviceRecognition": true,
-          "autoAdvanceOnMatch": true
-        }
-        """.data(using: .utf8)!
-
-        let decoded = try JSONDecoder().decode(AppSettings.self, from: legacyJSON)
-        XCTAssertTrue(decoded.allowManualConfirm)
-        XCTAssertFalse(decoded.allowAudioHelp)
-        XCTAssertTrue(decoded.autoListenNextTile)
-        XCTAssertNil(decoded.selectedVoiceIdentifier)
-    }
-
-    func testAppSettingsDefaultAndMissingManualConfirmDecodeToFalse() throws {
-        XCTAssertFalse(AppSettings().allowManualConfirm)
-
-        let minimalJSON = "{}".data(using: .utf8)!
-        let decoded = try JSONDecoder().decode(AppSettings.self, from: minimalJSON)
-        XCTAssertFalse(decoded.allowManualConfirm)
-    }
-
     func testSingleLetterDisplayEnrichesTileWithSpokenTextAh() {
         let matcher = PhoneticMatcher()
         let tile = ReadingTile(

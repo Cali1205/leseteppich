@@ -40,6 +40,9 @@ public struct CarpetProgress: Codable, Equatable, Sendable {
 }
 
 public struct AppSettings: Codable, Equatable, Sendable {
+    public static let currentSettingsVersion = 2
+
+    public var settingsVersion: Int
     public var showSyllableColors: Bool
     public var showSyllableArcs: Bool
     public var speechRate: Double
@@ -55,6 +58,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var selectedVoiceIdentifier: String?
 
     enum CodingKeys: String, CodingKey {
+        case settingsVersion
         case showSyllableColors
         case showSyllableArcs
         case speechRate
@@ -68,6 +72,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
     }
 
     public init(
+        settingsVersion: Int = AppSettings.currentSettingsVersion,
         showSyllableColors: Bool = true,
         showSyllableArcs: Bool = true,
         speechRate: Double = 0.48,
@@ -79,6 +84,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         autoListenNextTile: Bool = true,
         selectedVoiceIdentifier: String? = nil
     ) {
+        self.settingsVersion = settingsVersion
         self.showSyllableColors = showSyllableColors
         self.showSyllableArcs = showSyllableArcs
         self.speechRate = speechRate
@@ -93,16 +99,24 @@ public struct AppSettings: Codable, Equatable, Sendable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let decodedVersion = try container.decodeIfPresent(Int.self, forKey: .settingsVersion) ?? 1
         showSyllableColors = try container.decodeIfPresent(Bool.self, forKey: .showSyllableColors) ?? true
         showSyllableArcs = try container.decodeIfPresent(Bool.self, forKey: .showSyllableArcs) ?? true
         speechRate = try container.decodeIfPresent(Double.self, forKey: .speechRate) ?? 0.48
         strictness = try container.decodeIfPresent(MatchingStrictness.self, forKey: .strictness) ?? .gentle
-        allowManualConfirm = try container.decodeIfPresent(Bool.self, forKey: .allowManualConfirm) ?? false
         preferOnDeviceRecognition = try container.decodeIfPresent(Bool.self, forKey: .preferOnDeviceRecognition) ?? true
         autoAdvanceOnMatch = try container.decodeIfPresent(Bool.self, forKey: .autoAdvanceOnMatch) ?? true
         allowAudioHelp = try container.decodeIfPresent(Bool.self, forKey: .allowAudioHelp) ?? false
         autoListenNextTile = try container.decodeIfPresent(Bool.self, forKey: .autoListenNextTile) ?? true
         selectedVoiceIdentifier = try container.decodeIfPresent(String.self, forKey: .selectedVoiceIdentifier)
+
+        if decodedVersion < Self.currentSettingsVersion {
+            allowManualConfirm = false
+            settingsVersion = Self.currentSettingsVersion
+        } else {
+            allowManualConfirm = try container.decodeIfPresent(Bool.self, forKey: .allowManualConfirm) ?? false
+            settingsVersion = decodedVersion
+        }
     }
 }
 

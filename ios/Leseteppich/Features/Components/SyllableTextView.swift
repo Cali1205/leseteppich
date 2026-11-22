@@ -19,13 +19,13 @@ public extension Color {
         self.init(red: r, green: g, blue: b)
     }
 
-    /// Returns `.black` or `.white` depending on the perceptual luminance of `color`.
-    static func contrastingForeground(for color: Color) -> Color {
+    /// Returns `.black` or `.white` depending on the perceptual luminance of this color.
+    var contrastingForeground: Color {
         var r: CGFloat = 0
         var g: CGFloat = 0
         var b: CGFloat = 0
         var a: CGFloat = 0
-        UIColor(color).getRed(&r, green: &g, blue: &b, alpha: &a)
+        UIColor(self).getRed(&r, green: &g, blue: &b, alpha: &a)
         let luminance = 0.299 * r + 0.587 * g + 0.114 * b
         return luminance > 0.6 ? .black : .white
     }

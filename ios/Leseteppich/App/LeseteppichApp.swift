@@ -16,7 +16,7 @@ struct LeseteppichApp: App {
                         // .background only, not .inactive: iOS permission prompts also make the scene inactive,
                         // and stopping then would abort the first mic start. Never keep mic/audio running here.
                         store.speechRecognizer.stopListening()
-                        store.synthesizer.stop()
+                        store.synthesizer.stop(deactivateSession: true)
                         store.voiceRecorder.stopRecording()
                     }
                 }

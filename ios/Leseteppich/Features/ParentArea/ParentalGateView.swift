@@ -71,7 +71,8 @@ struct ParentalGateView: View {
                     Button("Abbrechen") { dismiss() }
                 }
             }
-            .onAppear {
+            .task {
+                try? await Task.sleep(for: .milliseconds(300))
                 isAnswerFocused = true
             }
         }
@@ -90,14 +91,7 @@ struct ParentalGateView: View {
     }
 
     private func rerollFactors() {
-        let previousA = factorA
-        let previousB = factorB
-        var nextA = Int.random(in: 3...8)
-        var nextB = Int.random(in: 3...7)
-        if nextA == previousA && nextB == previousB {
-            nextA = (nextA - 3 + 1) % 6 + 3
-        }
-        factorA = nextA
-        factorB = nextB
+        factorA = .random(in: 3...8)
+        factorB = .random(in: 3...7)
     }
 }

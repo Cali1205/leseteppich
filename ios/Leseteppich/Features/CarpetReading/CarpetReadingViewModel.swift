@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftUI
 import UIKit
@@ -16,10 +17,20 @@ final class CarpetReadingViewModel: ObservableObject {
     private var listenTask: Task<Void, Never>?
     private var consecutiveAutoRetries: Int = 0
     private let maxAutoRetriesPerTile: Int = 2
+    private var backgroundObserver: AnyCancellable?
 
     init(carpet: Carpet, store: AppStore) {
         self.engine = ReadingSessionEngine(carpet: carpet)
         self.store = store
+        // The app-level stop only halts the services; this also kills the pending sleep tasks that would reopen the mic.
+        backgroundObserver = NotificationCenter.default
+            .publisher(for: UIApplication.didEnterBackgroundNotification)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.stopContinuousReading()
+                    self?.recognitionStatus = .idle
+                }
+            }
     }
 
     var carpet: Carpet { engine.carpet }
@@ -27,6 +38,11 @@ final class CarpetReadingViewModel: ObservableObject {
     var settings: AppSettings { store.settings }
     var allowAudioHelp: Bool { store.settings.allowAudioHelp }
     var completedRuns: Int { store.progress(for: carpet.id).completedRuns }
+
+    /// Manual "Richtig gelesen" is offered if enabled in settings, or as a rescue after two failed attempts.
+    var showsRescueConfirm: Bool {
+        settings.allowManualConfirm || engine.failedAttemptsOnCurrentTile >= 2
+    }
 
     var isMicrophoneFlowActive: Bool {
         recognitionStatus == .listening || recognitionStatus == .preparingNext || isContinuousReadingActive
@@ -89,6 +105,8 @@ final class CarpetReadingViewModel: ObservableObject {
     func confirmCurrentTileManually() {
         let shouldKeepContinuous = isContinuousReadingActive && settings.autoListenNextTile
         cancelPendingAutoContinue()
+        listenTask?.cancel()
+        listenTask = nil
         store.speechRecognizer.stopListening()
         store.synthesizer.stop()
         audioLevel = 0.0

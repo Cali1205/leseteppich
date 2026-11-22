@@ -193,13 +193,17 @@ public final class AudioSpeechSynthesizer: NSObject, ObservableObject {
         synthesizer.speak(utterance)
     }
 
-    public func stop() {
+    /// `deactivateSession` is for final stops (e.g. app backgrounded); the default keeps the session for a follow-up mic/TTS start.
+    public func stop(deactivateSession: Bool = false) {
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
         audioPlayer?.stop()
         audioPlayer = nil
         isSpeaking = false
+        if deactivateSession {
+            configurePlaybackSession(active: false)
+        }
     }
 
     private func playRecording(at url: URL) -> Bool {

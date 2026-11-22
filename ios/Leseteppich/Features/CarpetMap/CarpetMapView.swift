@@ -82,7 +82,6 @@ struct CarpetMapView: View {
                     pendingOpenParentArea = true
                     showParentGate = false
                 }
-                .presentationDetents([.large])
             }
             .sheet(isPresented: $showParentArea) {
                 ParentAreaView()
@@ -195,7 +194,7 @@ private struct CarpetCardView: View {
 
                 Text(carpet.focusLetters.joined(separator: " "))
                     .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(accent.contrastingForeground)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
                     .background(accent)
@@ -228,13 +227,16 @@ private struct CarpetCardView: View {
             .padding(.top, 2)
 
             if isNext {
-                Label("Weiterlesen", systemImage: "play.fill")
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(accent)
-                    .clipShape(Capsule())
+                Label(
+                    progress.completedRuns > 0 ? "Weiterlesen" : "Los geht’s",
+                    systemImage: "play.fill"
+                )
+                .font(.system(size: 13, weight: .bold, design: .rounded))
+                .foregroundStyle(accent.contrastingForeground)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 5)
+                .background(accent)
+                .clipShape(Capsule())
             }
         }
         .padding(14)

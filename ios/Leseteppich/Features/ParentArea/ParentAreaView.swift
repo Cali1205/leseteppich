@@ -49,11 +49,8 @@ struct ParentAreaView: View {
             ) { carpet in
                 Button("Fortschritt zurücksetzen", role: .destructive) {
                     store.resetProgress(for: carpet.id)
-                    carpetToReset = nil
                 }
-                Button("Abbrechen", role: .cancel) {
-                    carpetToReset = nil
-                }
+                Button("Abbrechen", role: .cancel) {}
             } message: { carpet in
                 Text("Alle gesammelten Sterne für „\(carpet.title)“ werden gelöscht.")
             }

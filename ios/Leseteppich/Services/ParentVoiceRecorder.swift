@@ -22,6 +22,8 @@ public final class ParentVoiceRecorder: NSObject, VoiceRecording, ObservableObje
 
     private let recordingsDirectory: URL
     private var recorder: AVAudioRecorder?
+    /// Bumped by every start/stop so a start awaiting the permission prompt can tell it was stopped meanwhile.
+    private var generation = 0
 
     public init(baseDirectory: URL? = nil) {
         let root = baseDirectory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
@@ -40,10 +42,14 @@ public final class ParentVoiceRecorder: NSObject, VoiceRecording, ObservableObje
     }
 
     public func startRecording(for tileID: String) async throws {
+        generation += 1
+        let startGeneration = generation
         let granted = await AVAudioApplication.requestRecordPermission()
         guard granted else {
             throw VoiceRecorderError.microphonePermissionDenied
         }
+        // Stop/background (or a newer start) during the prompt: don't open the mic now.
+        guard startGeneration == generation else { return }
 
         stopRecording()
 
@@ -59,7 +65,13 @@ public final class ParentVoiceRecorder: NSObject, VoiceRecording, ObservableObje
             AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
         ]
 
-        let newRecorder = try AVAudioRecorder(url: url, settings: settings)
+        let newRecorder: AVAudioRecorder
+        do {
+            newRecorder = try AVAudioRecorder(url: url, settings: settings)
+        } catch {
+            deactivateSession()
+            throw error
+        }
         guard newRecorder.record() else {
             try? FileManager.default.removeItem(at: url)
             deactivateSession()
@@ -72,6 +84,7 @@ public final class ParentVoiceRecorder: NSObject, VoiceRecording, ObservableObje
     }
 
     public func stopRecording() {
+        generation += 1
         let wasRecording = recorder != nil
         recorder?.stop()
         recorder = nil

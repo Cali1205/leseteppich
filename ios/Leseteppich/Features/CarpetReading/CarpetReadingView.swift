@@ -3,11 +3,9 @@ import SwiftUI
 struct CarpetReadingView: View {
     @StateObject private var viewModel: CarpetReadingViewModel
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var showRestartConfirmation = false
     @State private var showExitConfirmation = false
-    @State private var micPulse = false
 
     init(carpet: Carpet, store: AppStore) {
         _viewModel = StateObject(wrappedValue: CarpetReadingViewModel(carpet: carpet, store: store))
@@ -61,6 +59,8 @@ struct CarpetReadingView: View {
                         showExitConfirmation = true
                     } label: {
                         Image(systemName: "house.fill")
+                            .frame(minWidth: 60, minHeight: 60)
+                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel("Zurück zur Übersicht")
                 }
@@ -164,41 +164,16 @@ struct CarpetReadingView: View {
                     }
 
                     if !viewModel.allowAudioHelp || viewModel.mode == .read {
-                        let isActive = viewModel.isMicrophoneFlowActive
-                        let bgColor = isActive ? Color(hex: "#0E9F6E") : accent
-
-                        Button {
-                            viewModel.toggleListening()
-                        } label: {
-                            Label(
-                                isActive ? "Pause" : "Vorlesen",
-                                systemImage: isActive ? "stop.circle.fill" : "mic.fill"
-                            )
-                            .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .frame(maxWidth: .infinity, minHeight: 64)
-                            .background(bgColor)
-                            .foregroundStyle(Color.contrastingForeground(for: bgColor))
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
-                        .scaleEffect(isActive && !reduceMotion && micPulse ? 1.03 : 1.0)
-                        .animation(
-                            isActive && !reduceMotion
-                                ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
-                                : .default,
-                            value: micPulse
+                        MicToggleButton(
+                            isActive: viewModel.isMicrophoneFlowActive,
+                            accent: accent,
+                            action: { viewModel.toggleListening() }
                         )
-                        .onChange(of: isActive) { _, active in
-                            micPulse = active && !reduceMotion
-                        }
-                        .onAppear {
-                            micPulse = isActive && !reduceMotion
-                        }
-                        .accessibilityLabel(isActive ? "Zuhören stoppen" : "Zuhören starten")
                     }
                 }
 
                 if (!viewModel.allowAudioHelp || viewModel.mode == .read)
-                    && (viewModel.settings.allowManualConfirm || viewModel.engine.failedAttemptsOnCurrentTile >= 2) {
+                    && viewModel.showsRescueConfirm {
                     Button {
                         viewModel.confirmCurrentTileManually()
                     } label: {

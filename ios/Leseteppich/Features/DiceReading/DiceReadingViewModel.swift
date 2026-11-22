@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftUI
 import UIKit
@@ -15,10 +16,20 @@ final class DiceReadingViewModel: ObservableObject {
     private var pendingTask: Task<Void, Never>?
     private var listenTask: Task<Void, Never>?
     @Published private(set) var failedAttemptsOnCurrentCell: Int = 0
+    private var backgroundObserver: AnyCancellable?
 
     init(board: DiceBoard, store: AppStore) {
         self.engine = DiceGameEngine(board: board, twoPlayerMode: false)
         self.store = store
+        // The app-level stop only halts the services; this also kills the pending sleep tasks that would reopen the mic.
+        backgroundObserver = NotificationCenter.default
+            .publisher(for: UIApplication.didEnterBackgroundNotification)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.stopAudioAndSpeech()
+                    self?.recognitionStatus = .idle
+                }
+            }
     }
 
     var board: DiceBoard { engine.board }
@@ -76,8 +87,11 @@ final class DiceReadingViewModel: ObservableObject {
     func selectColumn(_ diceValue: Int) {
         stopAudioAndSpeech()
         recognitionStatus = .idle
+        let previousCellID = engine.activeCell?.id
         engine.selectNextFreeCell(in: diceValue)
-        failedAttemptsOnCurrentCell = 0
+        if engine.activeCell?.id != previousCellID {
+            failedAttemptsOnCurrentCell = 0
+        }
         displayedDiceFace = diceValue
     }
 

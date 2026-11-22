@@ -9,7 +9,6 @@ struct DiceReadingView: View {
     @State private var showExitConfirmation = false
     @State private var showModeChangeConfirmation = false
     @State private var pendingTwoPlayerMode: Bool?
-    @State private var micPulse = false
 
     init(board: DiceBoard, store: AppStore) {
         _viewModel = StateObject(wrappedValue: DiceReadingViewModel(board: board, store: store))
@@ -37,7 +36,9 @@ struct DiceReadingView: View {
                     title: viewModel.engine.twoPlayerMode
                         ? "\(winner.displayName) hat den Schatz erreicht!"
                         : "Schatz gefunden!",
-                    subtitle: "Toll! Du hast den Schatz geholt!",
+                    subtitle: viewModel.engine.twoPlayerMode
+                        ? "Toll gemacht!"
+                        : "Toll! Du hast den Schatz geholt!",
                     earnedStars: 1,
                     targetStars: 1,
                     onRestart: {
@@ -60,6 +61,8 @@ struct DiceReadingView: View {
                         showExitConfirmation = true
                     } label: {
                         Image(systemName: "house.fill")
+                            .frame(minWidth: 60, minHeight: 60)
+                            .contentShape(Rectangle())
                     }
                     .accessibilityLabel("Zurück zur Übersicht")
                 }
@@ -127,8 +130,8 @@ struct DiceReadingView: View {
                     }
                 )
             ) {
-                Label("1 Spieler", systemImage: "person.fill").tag(false)
-                Label("2 Spieler", systemImage: "person.2.fill").tag(true)
+                Text("1 Spieler").tag(false)
+                Text("2 Spieler").tag(true)
             }
             .pickerStyle(.segmented)
 
@@ -188,35 +191,12 @@ struct DiceReadingView: View {
                     }
 
                     let isListening = viewModel.recognitionStatus == .listening || viewModel.recognitionStatus == .preparingNext
-                    let bgColor = isListening ? Color(hex: "#0E9F6E") : Color.orange
 
-                    Button {
-                        viewModel.toggleListening()
-                    } label: {
-                        Label(
-                            isListening ? "Stopp" : "Vorlesen",
-                            systemImage: isListening ? "stop.circle.fill" : "mic.fill"
-                        )
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .frame(maxWidth: .infinity, minHeight: 64)
-                        .background(bgColor)
-                        .foregroundStyle(Color.contrastingForeground(for: bgColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-                    .scaleEffect(isListening && !reduceMotion && micPulse ? 1.03 : 1.0)
-                    .animation(
-                        isListening && !reduceMotion
-                            ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
-                            : .default,
-                        value: micPulse
+                    MicToggleButton(
+                        isActive: isListening,
+                        accent: .orange,
+                        action: { viewModel.toggleListening() }
                     )
-                    .onChange(of: isListening) { _, active in
-                        micPulse = active && !reduceMotion
-                    }
-                    .onAppear {
-                        micPulse = isListening && !reduceMotion
-                    }
-                    .accessibilityLabel(isListening ? "Zuhören stoppen" : "Zuhören starten")
                 }
 
                 if viewModel.showsRescueConfirm {
@@ -298,13 +278,12 @@ struct DiceReadingView: View {
                             let isNextFree = viewModel.engine.nextFreeRowIndex(in: column.diceValue) == rowIndex
 
                             Button {
-                                if isNextFree {
-                                    viewModel.selectColumn(column.diceValue)
-                                }
+                                viewModel.selectColumn(column.diceValue)
                             } label: {
                                 cellTile(cell: cell, isActive: isActive, owner: owner)
                             }
                             .buttonStyle(.plain)
+                            .disabled(!isNextFree)
                             .accessibilityLabel("\(cell.display), Würfel \(column.diceValue)")
                             .accessibilityValue(owner != nil ? "Geschafft" : (isActive ? "Aktuell" : ""))
                         }
