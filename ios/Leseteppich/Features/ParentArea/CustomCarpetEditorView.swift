@@ -25,7 +25,7 @@ struct CustomCarpetEditorView: View {
         ("⏰", "Uhr", "#16A085"),
         ("🪶", "Feder", "#8E44AD"),
         ("🎩", "Hut", "#2C3E50"),
-        ("🍋", "Zitrone", "#F1C40F"),
+        ("🍋", "Zitrone", "#B7791F"),
         ("🌳", "Baum", "#27AE60"),
         ("📖", "Buch", "#2980B9")
     ]
@@ -123,10 +123,11 @@ struct CustomCarpetEditorView: View {
             .filter { !$0.isEmpty }
 
         let nextOrder = (store.allCarpets.map(\.order).max() ?? 0) + 1
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let newCarpet = Carpet(
             id: carpetID,
             order: nextOrder,
-            title: title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Leseteppich \(nextOrder)" : title,
+            title: trimmedTitle.isEmpty ? "Leseteppich \(nextOrder)" : trimmedTitle,
             subtitle: "Eigener Leseteppich",
             focusLetters: letters.isEmpty ? ["★"] : letters,
             motifEmoji: motifEmoji,

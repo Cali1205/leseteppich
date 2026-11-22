@@ -2,9 +2,21 @@ import SwiftUI
 
 struct DiceReadingView: View {
     @StateObject private var viewModel: DiceReadingViewModel
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @State private var showRestartConfirmation = false
+    @State private var showExitConfirmation = false
+    @State private var showModeChangeConfirmation = false
+    @State private var pendingTwoPlayerMode: Bool?
+    @State private var micPulse = false
 
     init(board: DiceBoard, store: AppStore) {
         _viewModel = StateObject(wrappedValue: DiceReadingViewModel(board: board, store: store))
+    }
+
+    private var hasProgress: Bool {
+        !viewModel.engine.claimedCells.isEmpty
     }
 
     var body: some View {
@@ -25,24 +37,70 @@ struct DiceReadingView: View {
                     title: viewModel.engine.twoPlayerMode
                         ? "\(winner.displayName) hat den Schatz erreicht!"
                         : "Schatz gefunden!",
-                    subtitle: "Spalte \(viewModel.engine.winningColumnDiceValue ?? 1) wurde bis ganz nach oben gelesen!",
-                    buttonTitle: "Neue Schatzsuche",
-                    onContinue: {
+                    subtitle: "Toll! Du hast den Schatz geholt!",
+                    earnedStars: 1,
+                    targetStars: 1,
+                    onRestart: {
                         viewModel.restartGame()
+                    },
+                    onDismiss: {
+                        viewModel.restartGame()
+                        dismiss()
                     }
                 )
             }
         }
         .navigationTitle("Würfellesen")
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(hasProgress)
         .toolbar {
+            if hasProgress {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showExitConfirmation = true
+                    } label: {
+                        Image(systemName: "house.fill")
+                    }
+                    .accessibilityLabel("Zurück zur Übersicht")
+                }
+            }
+
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    viewModel.restartGame()
+                    if hasProgress {
+                        showRestartConfirmation = true
+                    } else {
+                        viewModel.restartGame()
+                    }
                 } label: {
                     Image(systemName: "arrow.counterclockwise")
                 }
+                .accessibilityLabel("Würfellesen neu starten")
             }
+        }
+        .confirmationDialog("Neu starten?", isPresented: $showRestartConfirmation, titleVisibility: .visible) {
+            Button("Neu starten", role: .destructive) {
+                viewModel.restartGame()
+            }
+            Button("Abbrechen", role: .cancel) {}
+        }
+        .confirmationDialog("Neu starten?", isPresented: $showModeChangeConfirmation, titleVisibility: .visible) {
+            Button("Neu starten", role: .destructive) {
+                if let pending = pendingTwoPlayerMode {
+                    viewModel.setTwoPlayerMode(pending)
+                    pendingTwoPlayerMode = nil
+                }
+            }
+            Button("Abbrechen", role: .cancel) {
+                pendingTwoPlayerMode = nil
+            }
+        }
+        .confirmationDialog("Aufhören?", isPresented: $showExitConfirmation, titleVisibility: .visible) {
+            Button("Aufhören", role: .destructive) {
+                viewModel.stopAudioAndSpeech()
+                dismiss()
+            }
+            Button("Weiterlesen", role: .cancel) {}
         }
         .onAppear {
             viewModel.onAppear()
@@ -58,11 +116,19 @@ struct DiceReadingView: View {
                 "Spieler",
                 selection: Binding(
                     get: { viewModel.engine.twoPlayerMode },
-                    set: { viewModel.setTwoPlayerMode($0) }
+                    set: { newValue in
+                        guard newValue != viewModel.engine.twoPlayerMode else { return }
+                        if hasProgress {
+                            pendingTwoPlayerMode = newValue
+                            showModeChangeConfirmation = true
+                        } else {
+                            viewModel.setTwoPlayerMode(newValue)
+                        }
+                    }
                 )
             ) {
-                Text("1 Spieler").tag(false)
-                Text("2 Spieler").tag(true)
+                Label("1 Spieler", systemImage: "person.fill").tag(false)
+                Label("2 Spieler", systemImage: "person.2.fill").tag(true)
             }
             .pickerStyle(.segmented)
 
@@ -92,7 +158,6 @@ struct DiceReadingView: View {
                 }
 
                 RebusOrSyllableView(
-                    display: cell.display,
                     syllables: cell.syllables,
                     rebusSegments: cell.rebusSegments,
                     fontSize: 38,
@@ -101,7 +166,12 @@ struct DiceReadingView: View {
                 )
                 .padding(.vertical, 8)
 
-                statusFeedback
+                RecognitionStatusView(
+                    status: viewModel.recognitionStatus,
+                    audioLevel: viewModel.audioLevel,
+                    expectedText: cell.display,
+                    accentColor: .orange
+                )
 
                 HStack(spacing: 12) {
                     if viewModel.allowAudioHelp {
@@ -110,38 +180,54 @@ struct DiceReadingView: View {
                         } label: {
                             Label("Anhören", systemImage: "speaker.wave.2.fill")
                                 .font(.system(size: 16, weight: .bold, design: .rounded))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12)
+                                .frame(maxWidth: .infinity, minHeight: 64)
                                 .background(Color(.tertiarySystemFill))
                                 .foregroundStyle(.primary)
                                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         }
                     }
 
+                    let isListening = viewModel.recognitionStatus == .listening || viewModel.recognitionStatus == .preparingNext
+                    let bgColor = isListening ? Color(hex: "#0E9F6E") : Color.orange
+
                     Button {
                         viewModel.toggleListening()
                     } label: {
-                        let isListening = viewModel.recognitionStatus == .listening || viewModel.recognitionStatus == .preparingNext
                         Label(
                             isListening ? "Stopp" : "Vorlesen",
                             systemImage: isListening ? "stop.circle.fill" : "mic.fill"
                         )
                         .font(.system(size: 16, weight: .bold, design: .rounded))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(isListening ? Color.red : Color.orange)
-                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, minHeight: 64)
+                        .background(bgColor)
+                        .foregroundStyle(Color.contrastingForeground(for: bgColor))
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
+                    .scaleEffect(isListening && !reduceMotion && micPulse ? 1.03 : 1.0)
+                    .animation(
+                        isListening && !reduceMotion
+                            ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
+                            : .default,
+                        value: micPulse
+                    )
+                    .onChange(of: isListening) { _, active in
+                        micPulse = active && !reduceMotion
+                    }
+                    .onAppear {
+                        micPulse = isListening && !reduceMotion
+                    }
+                    .accessibilityLabel(isListening ? "Zuhören stoppen" : "Zuhören starten")
                 }
 
-                if viewModel.settings.allowManualConfirm {
+                if viewModel.showsRescueConfirm {
                     Button {
                         viewModel.confirmActiveCell()
                     } label: {
                         Label("Gelesen & ankreuzen ✓", systemImage: "checkmark.circle.fill")
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .foregroundStyle(.green)
+                            .frame(maxWidth: .infinity, minHeight: 60)
+                            .contentShape(Rectangle())
                     }
                 }
             } else {
@@ -149,8 +235,13 @@ struct DiceReadingView: View {
                     Image(systemName: "die.face.\(viewModel.displayedDiceFace).fill")
                         .font(.system(size: 52))
                         .foregroundStyle(.orange)
-                        .rotationEffect(.degrees(viewModel.isRolling ? 360 : 0))
-                        .animation(viewModel.isRolling ? .linear(duration: 0.25).repeatForever(autoreverses: false) : .default, value: viewModel.isRolling)
+                        .rotationEffect(.degrees(viewModel.isRolling && !reduceMotion ? 360 : 0))
+                        .animation(
+                            viewModel.isRolling && !reduceMotion
+                                ? .linear(duration: 0.25).repeatForever(autoreverses: false)
+                                : .default,
+                            value: viewModel.isRolling
+                        )
 
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Wer erreicht zuerst den Schatz?")
@@ -164,10 +255,9 @@ struct DiceReadingView: View {
                 Button {
                     viewModel.rollDice()
                 } label: {
-                    Label(viewModel.isRolling ? "Würfelt..." : "Würfeln!", systemImage: "dice.fill")
+                    Label(viewModel.isRolling ? "Würfelt…" : "Würfeln!", systemImage: "dice.fill")
                         .font(.system(size: 20, weight: .bold, design: .rounded))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
+                        .frame(maxWidth: .infinity, minHeight: 64)
                         .background(Color.orange)
                         .foregroundStyle(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -179,37 +269,6 @@ struct DiceReadingView: View {
         .background(Color(.secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
-    }
-
-    @ViewBuilder
-    private var statusFeedback: some View {
-        switch viewModel.recognitionStatus {
-        case .idle:
-            EmptyView()
-        case .listening:
-            AudioLevelView(level: viewModel.audioLevel, isListening: true, accentColor: .orange)
-        case .preparingNext:
-            HStack(spacing: 6) {
-                ProgressView()
-                    .tint(.orange)
-                Text("Gleich geht's los…")
-                    .font(.caption.bold())
-                    .foregroundStyle(.orange)
-            }
-        case .matched(let transcript):
-            Label("Super! „\(transcript)“", systemImage: "checkmark.seal.fill")
-                .font(.subheadline.bold())
-                .foregroundStyle(.green)
-        case .retryNeeded(let heard):
-            Text("Probier es noch einmal! \(heard.map { "(Gehört: \($0))" } ?? "")")
-                .font(.caption.bold())
-                .foregroundStyle(.orange)
-        case .unavailable(let message):
-            Text(message)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-        }
     }
 
     private var treasureBoardGrid: some View {
@@ -236,12 +295,18 @@ struct DiceReadingView: View {
                             )
                             let owner = viewModel.engine.claimedCells[cell.id]
 
-                            cellTile(cell: cell, isActive: isActive, owner: owner)
-                                .onTapGesture {
-                                    if viewModel.engine.nextFreeRowIndex(in: column.diceValue) == rowIndex {
-                                        viewModel.selectColumn(column.diceValue)
-                                    }
+                            let isNextFree = viewModel.engine.nextFreeRowIndex(in: column.diceValue) == rowIndex
+
+                            Button {
+                                if isNextFree {
+                                    viewModel.selectColumn(column.diceValue)
                                 }
+                            } label: {
+                                cellTile(cell: cell, isActive: isActive, owner: owner)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("\(cell.display), Würfel \(column.diceValue)")
+                            .accessibilityValue(owner != nil ? "Geschafft" : (isActive ? "Aktuell" : ""))
                         }
                     }
                 }
@@ -255,12 +320,13 @@ struct DiceReadingView: View {
                     } label: {
                         Image(systemName: "die.face.\(column.diceValue).fill")
                             .font(.system(size: 26))
-                            .frame(maxWidth: .infinity, minHeight: 38)
+                            .frame(maxWidth: .infinity, minHeight: 60)
                             .foregroundStyle(isSelectedColumn ? .orange : .primary)
                             .background(isSelectedColumn ? Color.orange.opacity(0.18) : Color(.secondarySystemGroupedBackground))
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Würfel \(column.diceValue)")
                 }
             }
             .padding(.top, 4)
@@ -273,7 +339,7 @@ struct DiceReadingView: View {
     private func cellTile(cell: DiceCell, isActive: Bool, owner: DicePlayer?) -> some View {
         ZStack {
             Text(cell.display)
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
                 .multilineTextAlignment(.center)
                 .lineLimit(3)
                 .minimumScaleFactor(0.65)
@@ -286,7 +352,7 @@ struct DiceReadingView: View {
                     .foregroundStyle(playerColor(owner))
             }
         }
-        .frame(maxWidth: .infinity, minHeight: 46)
+        .frame(maxWidth: .infinity, minHeight: 60)
         .background(
             owner != nil
                 ? playerColor(owner!).opacity(0.16)

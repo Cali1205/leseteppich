@@ -41,7 +41,9 @@ public struct PhoneticMatcher: Sendable {
     ) -> RecognitionMatchResult {
         var targets = [tile.spokenText, tile.display]
         targets.append(contentsOf: tile.acceptedTranscriptions)
-        return match(hypotheses: hypotheses, expected: tile.spokenText, accepted: targets, strictness: strictness)
+        let normalizedDisplay = normalizeBasic(tile.display)
+        let expected = normalizedDisplay.count == 1 ? normalizedDisplay : tile.spokenText
+        return match(hypotheses: hypotheses, expected: expected, accepted: targets, strictness: strictness)
     }
 
     public func match(

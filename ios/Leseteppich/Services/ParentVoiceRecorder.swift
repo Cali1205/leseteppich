@@ -61,6 +61,8 @@ public final class ParentVoiceRecorder: NSObject, VoiceRecording, ObservableObje
 
         let newRecorder = try AVAudioRecorder(url: url, settings: settings)
         guard newRecorder.record() else {
+            try? FileManager.default.removeItem(at: url)
+            deactivateSession()
             throw VoiceRecorderError.failedToStart
         }
 
@@ -70,10 +72,16 @@ public final class ParentVoiceRecorder: NSObject, VoiceRecording, ObservableObje
     }
 
     public func stopRecording() {
+        let wasRecording = recorder != nil
         recorder?.stop()
         recorder = nil
         isRecording = false
         recordingTileID = nil
+        if wasRecording { deactivateSession() }
+    }
+
+    private func deactivateSession() {
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     public func deleteRecording(for tileID: String) throws {

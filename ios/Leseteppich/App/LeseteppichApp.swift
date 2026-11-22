@@ -12,6 +12,12 @@ struct LeseteppichApp: App {
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .active {
                         store.synthesizer.refreshVoices()
+                    } else if newPhase == .background {
+                        // .background only, not .inactive: iOS permission prompts also make the scene inactive,
+                        // and stopping then would abort the first mic start. Never keep mic/audio running here.
+                        store.speechRecognizer.stopListening()
+                        store.synthesizer.stop()
+                        store.voiceRecorder.stopRecording()
                     }
                 }
         }

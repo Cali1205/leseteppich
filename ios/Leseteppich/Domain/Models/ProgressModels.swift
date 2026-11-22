@@ -72,7 +72,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         showSyllableArcs: Bool = true,
         speechRate: Double = 0.48,
         strictness: MatchingStrictness = .gentle,
-        allowManualConfirm: Bool = true,
+        allowManualConfirm: Bool = false,
         preferOnDeviceRecognition: Bool = true,
         autoAdvanceOnMatch: Bool = true,
         allowAudioHelp: Bool = false,
@@ -97,7 +97,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         showSyllableArcs = try container.decodeIfPresent(Bool.self, forKey: .showSyllableArcs) ?? true
         speechRate = try container.decodeIfPresent(Double.self, forKey: .speechRate) ?? 0.48
         strictness = try container.decodeIfPresent(MatchingStrictness.self, forKey: .strictness) ?? .gentle
-        allowManualConfirm = try container.decodeIfPresent(Bool.self, forKey: .allowManualConfirm) ?? true
+        allowManualConfirm = try container.decodeIfPresent(Bool.self, forKey: .allowManualConfirm) ?? false
         preferOnDeviceRecognition = try container.decodeIfPresent(Bool.self, forKey: .preferOnDeviceRecognition) ?? true
         autoAdvanceOnMatch = try container.decodeIfPresent(Bool.self, forKey: .autoAdvanceOnMatch) ?? true
         allowAudioHelp = try container.decodeIfPresent(Bool.self, forKey: .allowAudioHelp) ?? false

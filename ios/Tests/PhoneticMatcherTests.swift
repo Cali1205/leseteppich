@@ -97,8 +97,64 @@ final class PhoneticMatcherTests: XCTestCase {
         """.data(using: .utf8)!
 
         let decoded = try JSONDecoder().decode(AppSettings.self, from: legacyJSON)
+        XCTAssertTrue(decoded.allowManualConfirm)
         XCTAssertFalse(decoded.allowAudioHelp)
         XCTAssertTrue(decoded.autoListenNextTile)
         XCTAssertNil(decoded.selectedVoiceIdentifier)
+    }
+
+    func testAppSettingsDefaultAndMissingManualConfirmDecodeToFalse() throws {
+        XCTAssertFalse(AppSettings().allowManualConfirm)
+
+        let minimalJSON = "{}".data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: minimalJSON)
+        XCTAssertFalse(decoded.allowManualConfirm)
+    }
+
+    func testSingleLetterDisplayEnrichesTileWithSpokenTextAh() {
+        let matcher = PhoneticMatcher()
+        let tile = ReadingTile(
+            id: "test_a_no_accepted",
+            display: "a",
+            syllables: ["a"],
+            spokenText: "Ah",
+            isSinglePhoneme: true,
+            acceptedTranscriptions: []
+        )
+
+        XCTAssertTrue(matcher.match(hypotheses: ["a"], tile: tile, strictness: .normal).isMatch)
+        XCTAssertTrue(matcher.match(hypotheses: ["ah"], tile: tile, strictness: .normal).isMatch)
+        XCTAssertTrue(matcher.match(hypotheses: ["aaa"], tile: tile, strictness: .normal).isMatch)
+        XCTAssertTrue(matcher.match(hypotheses: ["ha"], tile: tile, strictness: .normal).isMatch)
+        XCTAssertTrue(matcher.match(hypotheses: ["äh"], tile: tile, strictness: .gentle).isMatch)
+        XCTAssertFalse(matcher.match(hypotheses: ["oh"], tile: tile, strictness: .gentle).isMatch)
+    }
+
+    func testStrictnessThresholdsGentleNormalStrict() {
+        let matcher = PhoneticMatcher()
+
+        // "salat" vs "salas": 1 edit on length 5 -> similarity 0.80 (>= 0.75 gentle, < 0.84 normal)
+        XCTAssertTrue(matcher.match(hypotheses: ["Salas"], expected: "Salat", strictness: .gentle).isMatch)
+        XCTAssertFalse(matcher.match(hypotheses: ["Salas"], expected: "Salat", strictness: .normal).isMatch)
+        XCTAssertFalse(matcher.match(hypotheses: ["Salas"], expected: "Salat", strictness: .strict).isMatch)
+
+        // "tomaten" vs "tomates": 1 edit on length 7 -> similarity ~0.857 (>= 0.84 normal, rejected in strict)
+        XCTAssertTrue(matcher.match(hypotheses: ["Tomates"], expected: "Tomaten", strictness: .normal).isMatch)
+        XCTAssertFalse(matcher.match(hypotheses: ["Tomates"], expected: "Tomaten", strictness: .strict).isMatch)
+    }
+
+    func testShortTargetUnderFourCharsDisablesFuzzyMatching() {
+        let matcher = PhoneticMatcher()
+        // "lam" (len 3) vs "lame" (len 4) has similarity 0.75, which would pass gentle threshold (0.75) without the <4 guard
+        let result = matcher.match(hypotheses: ["lame"], expected: "lam", strictness: .gentle)
+        XCTAssertFalse(result.isMatch)
+    }
+
+    func testGermanUmlautsAndEszettMatchPhoneticEquivalents() {
+        let matcher = PhoneticMatcher()
+        XCTAssertTrue(matcher.match(hypotheses: ["Ber"], expected: "Bär", strictness: .normal).isMatch)
+        XCTAssertTrue(matcher.match(hypotheses: ["Loewe"], expected: "Löwe", strictness: .normal).isMatch)
+        XCTAssertTrue(matcher.match(hypotheses: ["Tuer"], expected: "Tür", strictness: .normal).isMatch)
+        XCTAssertTrue(matcher.match(hypotheses: ["Fuss"], expected: "Fuß", strictness: .normal).isMatch)
     }
 }

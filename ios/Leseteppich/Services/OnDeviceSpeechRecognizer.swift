@@ -3,7 +3,7 @@ import Foundation
 import Speech
 
 @MainActor
-public final class OnDeviceSpeechRecognizer: SpeechRecognizing, ObservableObject {
+public final class OnDeviceSpeechRecognizer: ObservableObject {
     @Published public private(set) var isListening: Bool = false
     @Published public private(set) var audioLevel: Double = 0.0
 
@@ -13,6 +13,9 @@ public final class OnDeviceSpeechRecognizer: SpeechRecognizing, ObservableObject
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var watcherTask: Task<Void, Never>?
+    /// Identifies the current listening session. Callbacks of cancelled recognition tasks, taps and
+    /// watchers capture their own token and bail out if it no longer matches, so they can't stop a newer session.
+    private var activeSession: UUID?
 
     private var customLMConfig: SFSpeechLanguageModel.Configuration?
     private var preparedVocabularyKey: String?
@@ -47,11 +50,14 @@ public final class OnDeviceSpeechRecognizer: SpeechRecognizing, ObservableObject
             return
         }
 
-        lmPrepareTask?.cancel()
+        // Chain instead of cancel: cancelling wouldn't stop the detached export/compile, and two
+        // overlapping runs would write the same cache files.
+        let previous = lmPrepareTask
         let localeID = self.localeIdentifier
         let bundleID = Bundle.main.bundleIdentifier ?? "io.github.cali1205.leseteppich"
 
         lmPrepareTask = Task { [weak self] in
+            await previous?.value
             let compiledConfig: SFSpeechLanguageModel.Configuration? = await Task.detached(priority: .utility) {
                 do {
                     let data = SFCustomLanguageModelData(
@@ -87,35 +93,52 @@ public final class OnDeviceSpeechRecognizer: SpeechRecognizing, ObservableObject
                 }
             }.value
 
-            guard !Task.isCancelled, let self, let compiledConfig else { return }
+            guard let self, let compiledConfig else { return }
             self.customLMConfig = compiledConfig
             self.preparedVocabularyKey = vocabKey
         }
+    }
+
+    /// How long the child may stay silent before the utterance is considered finished.
+    /// Slow beginner readers need more time for longer content.
+    public nonisolated static func silenceCutoff(syllableCount: Int, isMultiWord: Bool) -> TimeInterval {
+        if isMultiWord { return 1.9 }
+        return syllableCount >= 2 ? 1.45 : 0.95
     }
 
     public func startListening(
         contextualWords: [String],
         preferOnDevice: Bool,
         shortUtterance: Bool = true,
+        silenceCutoff: TimeInterval = 0.95,
         onHypotheses: @escaping @MainActor ([String], Bool) -> Void,
         onAudioLevel: @escaping @MainActor (Double) -> Void,
         onError: @escaping @MainActor (String) -> Void
     ) async {
+        guard !Task.isCancelled else { return }
         stopListening()
+        let session = UUID()
+        activeSession = session
 
+        // A Stop (or a newer start) during a permission prompt invalidates the token: don't open the mic then.
         let speechAuth = await requestSpeechAuthorization()
+        guard isCurrent(session) else { return }
         guard speechAuth == .authorized else {
+            activeSession = nil
             onError("Bitte erlaube die Spracherkennung in den iOS-Einstellungen.")
             return
         }
 
         let micGranted = await AVAudioApplication.requestRecordPermission()
+        guard isCurrent(session) else { return }
         guard micGranted else {
+            activeSession = nil
             onError("Bitte erlaube den Mikrofonzugriff in den iOS-Einstellungen.")
             return
         }
 
         guard let recognizer, recognizer.isAvailable else {
+            activeSession = nil
             onError("Die deutsche Spracherkennung ist gerade nicht verfügbar.")
             return
         }
@@ -158,7 +181,7 @@ public final class OnDeviceSpeechRecognizer: SpeechRecognizing, ObservableObject
                 request?.append(buffer)
                 let level = Self.calculateNormalizedRMS(buffer: buffer)
                 Task { @MainActor [weak self] in
-                    guard let self, self.isListening else { return }
+                    guard let self, self.activeSession == session else { return }
                     self.audioLevel = level
                     self.updateVoiceActivity(level: level)
                     onAudioLevel(level)
@@ -171,7 +194,7 @@ public final class OnDeviceSpeechRecognizer: SpeechRecognizing, ObservableObject
 
             recognitionTask = recognizer.recognitionTask(with: request) { [weak self] result, error in
                 Task { @MainActor in
-                    guard let self, self.isListening else { return }
+                    guard let self, self.activeSession == session else { return }
 
                     if let result {
                         let hypotheses = Self.extractAllHypotheses(from: result)
@@ -198,14 +221,13 @@ public final class OnDeviceSpeechRecognizer: SpeechRecognizing, ObservableObject
             }
 
             // Smart VAD auto-endpointing + safety max duration watcher
-            let silenceCutoff: TimeInterval = shortUtterance ? 0.80 : 1.25
             let maxWaitWithoutSpeech: TimeInterval = 7.0
             let postEndAudioGrace: TimeInterval = 1.6
 
             watcherTask = Task { @MainActor [weak self] in
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .milliseconds(150))
-                    guard let self, self.isListening else { return }
+                    guard let self, self.activeSession == session else { return }
                     let now = Date()
 
                     if self.hasEndedAudio {
@@ -240,6 +262,8 @@ public final class OnDeviceSpeechRecognizer: SpeechRecognizing, ObservableObject
     }
 
     public func stopListening() {
+        let wasActive = activeSession != nil
+        activeSession = nil
         watcherTask?.cancel()
         watcherTask = nil
 
@@ -261,6 +285,15 @@ public final class OnDeviceSpeechRecognizer: SpeechRecognizing, ObservableObject
         lastSpeechTime = nil
         hasEndedAudio = false
         endAudioTime = nil
+
+        // Release the mic session so other audio (and TTS) can resume; fails harmlessly if TTS is already playing.
+        if wasActive {
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        }
+    }
+
+    private func isCurrent(_ session: UUID) -> Bool {
+        activeSession == session && !Task.isCancelled
     }
 
     private func updateVoiceActivity(level: Double) {

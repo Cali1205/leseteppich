@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 public extension Color {
     init(hex: String) {
@@ -16,6 +17,17 @@ public extension Color {
             b = 0.88
         }
         self.init(red: r, green: g, blue: b)
+    }
+
+    /// Returns `.black` or `.white` depending on the perceptual luminance of `color`.
+    static func contrastingForeground(for color: Color) -> Color {
+        var r: CGFloat = 0
+        var g: CGFloat = 0
+        var b: CGFloat = 0
+        var a: CGFloat = 0
+        UIColor(color).getRed(&r, green: &g, blue: &b, alpha: &a)
+        let luminance = 0.299 * r + 0.587 * g + 0.114 * b
+        return luminance > 0.6 ? .black : .white
     }
 }
 
@@ -41,10 +53,28 @@ struct SyllableTextView: View {
     let showArcs: Bool
     var onTapSyllable: ((String) -> Void)? = nil
 
-    private let primarySyllableColor = Color(hex: "#1B6EC2")
-    private let secondarySyllableColor = Color(hex: "#D94A38")
+    private let primarySyllableColor = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0x5A / 255.0, green: 0xA9 / 255.0, blue: 0xFA / 255.0, alpha: 1)
+            : UIColor(red: 0x1B / 255.0, green: 0x6E / 255.0, blue: 0xC2 / 255.0, alpha: 1)
+    })
+    private let secondarySyllableColor = Color(UIColor { trait in
+        trait.userInterfaceStyle == .dark
+            ? UIColor(red: 0xFF / 255.0, green: 0x7B / 255.0, blue: 0x6B / 255.0, alpha: 1)
+            : UIColor(red: 0xD9 / 255.0, green: 0x4A / 255.0, blue: 0x38 / 255.0, alpha: 1)
+    })
 
     var body: some View {
+        if onTapSyllable == nil {
+            syllableRow
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(syllables.joined())
+        } else {
+            syllableRow
+        }
+    }
+
+    private var syllableRow: some View {
         HStack(alignment: .firstTextBaseline, spacing: showArcs && syllables.count > 1 ? 3 : 0) {
             ForEach(Array(syllables.enumerated()), id: \.offset) { index, syllable in
                 let color = syllableColor(for: index)
@@ -65,10 +95,9 @@ struct SyllableTextView: View {
                 .onTapGesture {
                     onTapSyllable?(syllable)
                 }
+                .accessibilityAddTraits(onTapSyllable != nil ? .isButton : [])
             }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(syllables.joined())
     }
 
     private func syllableColor(for index: Int) -> Color {
@@ -81,7 +110,6 @@ struct SyllableTextView: View {
 
 /// Renders either regular Silbenschrift or a Rebus sentence with inline icons (e.g. "Tim ❤️ Salat.").
 struct RebusOrSyllableView: View {
-    let display: String
     let syllables: [String]
     let rebusSegments: [RebusSegment]?
     let fontSize: CGFloat

@@ -116,13 +116,6 @@ public final class AppStore: ObservableObject {
         return pack.carpets.count
     }
 
-    public func exportCustomCarpetsJSON() throws -> Data {
-        let pack = CarpetPack(carpets: persistedData.customCarpets.isEmpty ? allCarpets : persistedData.customCarpets)
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return try encoder.encode(pack)
-    }
-
     private func persist() {
         progressStore.save(persistedData)
     }

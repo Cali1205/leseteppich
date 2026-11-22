@@ -13,6 +13,7 @@ final class CarpetReadingViewModel: ObservableObject {
 
     private let store: AppStore
     private var autoContinueTask: Task<Void, Never>?
+    private var listenTask: Task<Void, Never>?
     private var consecutiveAutoRetries: Int = 0
     private let maxAutoRetriesPerTile: Int = 2
 
@@ -111,6 +112,9 @@ final class CarpetReadingViewModel: ObservableObject {
         cancelPendingAutoContinue()
         isContinuousReadingActive = false
         consecutiveAutoRetries = 0
+        // Cancel first: a start that hasn't passed its permission prompt yet must not open the mic after Stop.
+        listenTask?.cancel()
+        listenTask = nil
         store.speechRecognizer.stopListening()
         audioLevel = 0.0
     }
@@ -132,13 +136,19 @@ final class CarpetReadingViewModel: ObservableObject {
         recognitionStatus = .listening
 
         let contextualWords = buildFocusedContextualVocabulary(for: tile)
-        let isShort = !tile.display.contains(" ")
+        let isMultiWord = tile.display.contains(" ")
+        let silenceCutoff = OnDeviceSpeechRecognizer.silenceCutoff(
+            syllableCount: tile.syllables.count,
+            isMultiWord: isMultiWord
+        )
 
-        Task {
+        listenTask?.cancel()
+        listenTask = Task {
             await store.speechRecognizer.startListening(
                 contextualWords: contextualWords,
                 preferOnDevice: settings.preferOnDeviceRecognition,
-                shortUtterance: isShort,
+                shortUtterance: !isMultiWord,
+                silenceCutoff: silenceCutoff,
                 onHypotheses: { [weak self] hypotheses, isFinal in
                     self?.handleHypotheses(hypotheses, isFinal: isFinal, for: tile)
                 },

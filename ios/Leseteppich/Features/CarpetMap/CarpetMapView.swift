@@ -3,6 +3,7 @@ import SwiftUI
 struct CarpetMapView: View {
     @EnvironmentObject private var store: AppStore
     @State private var showParentGate = false
+    @State private var pendingOpenParentArea = false
     @State private var showParentArea = false
 
     private let columns = [
@@ -23,12 +24,17 @@ struct CarpetMapView: View {
                         Text("Meine Leseteppiche")
                             .font(.system(size: 24, weight: .bold, design: .rounded))
 
+                        let nextCarpetID = store.allCarpets.first { carpet in
+                            store.progress(for: carpet.id).completedRuns < carpet.targetRepetitions
+                        }?.id
+
                         LazyVGrid(columns: columns, spacing: 16) {
                             ForEach(store.allCarpets) { carpet in
                                 NavigationLink(value: carpet) {
                                     CarpetCardView(
                                         carpet: carpet,
-                                        progress: store.progress(for: carpet.id)
+                                        progress: store.progress(for: carpet.id),
+                                        isNext: carpet.id == nextCarpetID
                                     )
                                 }
                                 .buttonStyle(.plain)
@@ -63,12 +69,20 @@ struct CarpetMapView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showParentGate) {
-                ParentalGateView {
-                    showParentGate = false
-                    showParentArea = true
+            .sheet(
+                isPresented: $showParentGate,
+                onDismiss: {
+                    if pendingOpenParentArea {
+                        pendingOpenParentArea = false
+                        showParentArea = true
+                    }
                 }
-                .presentationDetents([.medium])
+            ) {
+                ParentalGateView {
+                    pendingOpenParentArea = true
+                    showParentGate = false
+                }
+                .presentationDetents([.large])
             }
             .sheet(isPresented: $showParentArea) {
                 ParentAreaView()
@@ -160,6 +174,7 @@ struct CarpetMapView: View {
 private struct CarpetCardView: View {
     let carpet: Carpet
     let progress: CarpetProgress
+    let isNext: Bool
 
     var body: some View {
         let accent = Color(hex: carpet.accentHex)
@@ -211,6 +226,16 @@ private struct CarpetCardView: View {
                 }
             }
             .padding(.top, 2)
+
+            if isNext {
+                Label("Weiterlesen", systemImage: "play.fill")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(accent)
+                    .clipShape(Capsule())
+            }
         }
         .padding(14)
         .background(
@@ -220,7 +245,10 @@ private struct CarpetCardView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(isMastered ? accent : Color.clear, lineWidth: 2)
+                .stroke(
+                    (isMastered || isNext) ? accent : Color.clear,
+                    lineWidth: isNext ? 2.5 : 2
+                )
         )
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .shadow(color: .black.opacity(0.05), radius: 6, y: 3)

@@ -99,7 +99,7 @@ public enum GermanVoiceSelector {
 }
 
 @MainActor
-public final class AudioSpeechSynthesizer: NSObject, SpeechSynthesizing, ObservableObject {
+public final class AudioSpeechSynthesizer: NSObject, ObservableObject {
     @Published public private(set) var isSpeaking: Bool = false
     @Published public private(set) var availableVoices: [GermanVoiceOption] = []
     @Published public private(set) var hasHighQualityVoice: Bool = false
@@ -256,8 +256,8 @@ extension AudioSpeechSynthesizer: AVSpeechSynthesizerDelegate {
     nonisolated public func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
         Task { @MainActor in
             guard !self.synthesizer.isSpeaking, self.audioPlayer == nil else { return }
+            // No session deactivation here: the caller may be switching to the microphone.
             self.isSpeaking = false
-            self.configurePlaybackSession(active: false)
         }
     }
 }
@@ -265,6 +265,8 @@ extension AudioSpeechSynthesizer: AVSpeechSynthesizerDelegate {
 extension AudioSpeechSynthesizer: AVAudioPlayerDelegate {
     nonisolated public func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor in
+            // A stale callback from a replaced player must not clear the new one.
+            guard player === self.audioPlayer else { return }
             self.audioPlayer = nil
             self.isSpeaking = false
             self.configurePlaybackSession(active: false)

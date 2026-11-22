@@ -160,7 +160,7 @@
       "focusLetters": ["S"],
       "motifEmoji": "☀️",
       "motifName": "Sonne",
-      "accentHex": "#F1C40F",
+      "accentHex": "#B7791F",
       "targetRepetitions": 5,
       "columns": 4,
       "tiles": [
@@ -220,7 +220,7 @@
       "focusLetters": ["P"],
       "motifEmoji": "🖌️",
       "motifName": "Pinsel",
-      "accentHex": "#2ECC71",
+      "accentHex": "#1E8449",
       "targetRepetitions": 5,
       "columns": 4,
       "tiles": [
@@ -239,7 +239,7 @@
         { "id": "c8_13", "display": "Ampel", "syllables": ["Am", "pel"], "spokenText": "Ampel", "ipa": "ˈam.pl̩", "isSinglePhoneme": false, "acceptedTranscriptions": ["ampel", "am pel"] },
         { "id": "c8_14", "display": "Lampe", "syllables": ["Lam", "pe"], "spokenText": "Lampe", "ipa": "ˈlam.pə", "isSinglePhoneme": false, "acceptedTranscriptions": ["lampe", "lam pe"] },
         { "id": "c8_15", "display": "Lippe", "syllables": ["Lip", "pe"], "spokenText": "Lippe", "ipa": "ˈlɪp.ə", "isSinglePhoneme": false, "acceptedTranscriptions": ["lippe", "lipe"] },
-        { "id": "c8_16", "display": "Pistole", "syllables": ["Pis", "to", "le"], "spokenText": "Pistole", "ipa": "pɪs.ˈtoː.lə", "isSinglePhoneme": false, "acceptedTranscriptions": ["pistole", "pis tole"] }
+        { "id": "c8_16", "display": "Palette", "syllables": ["Pa", "let", "te"], "spokenText": "Palette", "ipa": "pa.ˈlɛt.ə", "isSinglePhoneme": false, "acceptedTranscriptions": ["palette", "pa lette"] }
       ]
     }
   ]

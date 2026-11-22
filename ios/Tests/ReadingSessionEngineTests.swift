@@ -47,4 +47,41 @@ final class ReadingSessionEngineTests: XCTestCase {
         XCTAssertFalse(engine.markCurrentTileCompleted())
         XCTAssertEqual(engine.activeIndex, 0)
     }
+
+    func testFailedAttemptsCountAndResetOnCompletionSelectionAndReset() {
+        var engine = ReadingSessionEngine(carpet: makeSampleCarpet())
+        XCTAssertEqual(engine.failedAttemptsOnCurrentTile, 0)
+
+        engine.recordFailedAttempt()
+        engine.recordFailedAttempt()
+        XCTAssertEqual(engine.failedAttemptsOnCurrentTile, 2)
+
+        engine.markCurrentTileCompleted()
+        XCTAssertEqual(engine.failedAttemptsOnCurrentTile, 0)
+
+        engine.recordFailedAttempt()
+        XCTAssertEqual(engine.failedAttemptsOnCurrentTile, 1)
+
+        engine.selectTile(at: 3)
+        XCTAssertEqual(engine.failedAttemptsOnCurrentTile, 0)
+
+        engine.recordFailedAttempt()
+        engine.reset()
+        XCTAssertEqual(engine.failedAttemptsOnCurrentTile, 0)
+        XCTAssertEqual(engine.activeIndex, 0)
+        XCTAssertTrue(engine.completedTileIDs.isEmpty)
+    }
+
+    func testOutOfBoundsSelectTileIsIgnored() {
+        var engine = ReadingSessionEngine(carpet: makeSampleCarpet())
+        engine.recordFailedAttempt()
+
+        engine.selectTile(at: -1)
+        XCTAssertEqual(engine.activeIndex, 0)
+        XCTAssertEqual(engine.failedAttemptsOnCurrentTile, 1)
+
+        engine.selectTile(at: 99)
+        XCTAssertEqual(engine.activeIndex, 0)
+        XCTAssertEqual(engine.failedAttemptsOnCurrentTile, 1)
+    }
 }

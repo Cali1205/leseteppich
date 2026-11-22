@@ -13,6 +13,8 @@ final class DiceReadingViewModel: ObservableObject {
 
     private let store: AppStore
     private var pendingTask: Task<Void, Never>?
+    private var listenTask: Task<Void, Never>?
+    @Published private(set) var failedAttemptsOnCurrentCell: Int = 0
 
     init(board: DiceBoard, store: AppStore) {
         self.engine = DiceGameEngine(board: board, twoPlayerMode: false)
@@ -24,6 +26,11 @@ final class DiceReadingViewModel: ObservableObject {
     var allowAudioHelp: Bool { store.settings.allowAudioHelp }
     var activeCell: DiceCell? { engine.activeCell }
 
+    /// Manual "Richtig gelesen" is offered if enabled in settings, or as a rescue after two failed attempts.
+    var showsRescueConfirm: Bool {
+        settings.allowManualConfirm || failedAttemptsOnCurrentCell >= 2
+    }
+
     func onAppear() {
         Task {
             await prepareBoardVocabulary()
@@ -33,6 +40,7 @@ final class DiceReadingViewModel: ObservableObject {
     func setTwoPlayerMode(_ enabled: Bool) {
         stopAudioAndSpeech()
         engine.reset(twoPlayerMode: enabled)
+        failedAttemptsOnCurrentCell = 0
         recognitionStatus = .idle
         showWinnerCelebration = false
     }
@@ -41,6 +49,7 @@ final class DiceReadingViewModel: ObservableObject {
         guard !isRolling, engine.winner == nil else { return }
         stopAudioAndSpeech()
         recognitionStatus = .idle
+        failedAttemptsOnCurrentCell = 0
         isRolling = true
 
         pendingTask = Task { @MainActor [weak self] in
@@ -68,6 +77,7 @@ final class DiceReadingViewModel: ObservableObject {
         stopAudioAndSpeech()
         recognitionStatus = .idle
         engine.selectNextFreeCell(in: diceValue)
+        failedAttemptsOnCurrentCell = 0
         displayedDiceFace = diceValue
     }
 
@@ -83,7 +93,8 @@ final class DiceReadingViewModel: ObservableObject {
     }
 
     func toggleListening() {
-        if store.speechRecognizer.isListening || recognitionStatus == .preparingNext {
+        // Also covers the permission-prompt phase (status already .listening, recognizer not yet).
+        if store.speechRecognizer.isListening || recognitionStatus == .listening || recognitionStatus == .preparingNext {
             stopAudioAndSpeech()
             recognitionStatus = .idle
             return
@@ -94,6 +105,7 @@ final class DiceReadingViewModel: ObservableObject {
     func confirmActiveCell() {
         stopAudioAndSpeech()
         let won = engine.completeActiveCell()
+        failedAttemptsOnCurrentCell = 0
         recognitionStatus = .idle
         if won {
             store.recordDiceWin()
@@ -104,6 +116,7 @@ final class DiceReadingViewModel: ObservableObject {
     func restartGame() {
         stopAudioAndSpeech()
         engine.reset()
+        failedAttemptsOnCurrentCell = 0
         recognitionStatus = .idle
         showWinnerCelebration = false
     }
@@ -111,8 +124,12 @@ final class DiceReadingViewModel: ObservableObject {
     func stopAudioAndSpeech() {
         pendingTask?.cancel()
         pendingTask = nil
+        // Cancel first: a start that hasn't passed its permission prompt yet must not open the mic after Stop.
+        listenTask?.cancel()
+        listenTask = nil
         store.speechRecognizer.stopListening()
         store.synthesizer.stop()
+        isRolling = false // a cancelled mid-roll task never resets it, which would lock the dice button
         audioLevel = 0.0
     }
 
@@ -123,13 +140,19 @@ final class DiceReadingViewModel: ObservableObject {
 
         let tile = cell.asReadingTile
         let contextualWords = Array(Set([cell.spokenText, cell.display] + cell.acceptedTranscriptions))
-        let isShort = !cell.spokenText.contains(" ")
+        let isMultiWord = cell.spokenText.contains(" ")
+        let silenceCutoff = OnDeviceSpeechRecognizer.silenceCutoff(
+            syllableCount: cell.syllables.count,
+            isMultiWord: isMultiWord
+        )
 
-        Task {
+        listenTask?.cancel()
+        listenTask = Task {
             await store.speechRecognizer.startListening(
                 contextualWords: contextualWords,
                 preferOnDevice: settings.preferOnDeviceRecognition,
-                shortUtterance: isShort,
+                shortUtterance: !isMultiWord,
+                silenceCutoff: silenceCutoff,
                 onHypotheses: { [weak self] hypotheses, isFinal in
                     self?.handleHypotheses(hypotheses, isFinal: isFinal, for: tile)
                 },
@@ -170,6 +193,7 @@ final class DiceReadingViewModel: ObservableObject {
         }
 
         if isFinal {
+            failedAttemptsOnCurrentCell += 1
             recognitionStatus = .retryNeeded(heard: hypotheses.first)
         }
     }

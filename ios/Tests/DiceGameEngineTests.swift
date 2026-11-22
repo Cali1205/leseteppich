@@ -42,4 +42,42 @@ final class DiceGameEngineTests: XCTestCase {
         XCTAssertTrue(engine.completeActiveCell())
         XCTAssertEqual(engine.winner, .two)
     }
+
+    func testSelectNextFreeCellAdvancesWithinColumnAndIgnoresInvalidDiceValue() {
+        var engine = DiceGameEngine(board: makeSampleBoard(), twoPlayerMode: false)
+
+        engine.selectNextFreeCell(in: 4)
+        XCTAssertEqual(engine.lastRolledValue, 4)
+        XCTAssertEqual(engine.activeCoordinate, DiceCellCoordinate(diceValue: 4, rowIndex: 0))
+        XCTAssertEqual(engine.activeCell?.id, "d4_r0")
+
+        XCTAssertFalse(engine.completeActiveCell())
+
+        engine.selectNextFreeCell(in: 4)
+        XCTAssertEqual(engine.activeCoordinate, DiceCellCoordinate(diceValue: 4, rowIndex: 1))
+        XCTAssertEqual(engine.activeCell?.id, "d4_r1")
+
+        engine.selectNextFreeCell(in: 99)
+        XCTAssertEqual(engine.activeCoordinate, DiceCellCoordinate(diceValue: 4, rowIndex: 1))
+    }
+
+    func testAvailableDiceValuesExcludesFullColumnAndNoMovesAllowedAfterWin() {
+        var engine = DiceGameEngine(board: makeSampleBoard(), twoPlayerMode: false)
+        XCTAssertEqual(engine.availableDiceValues, [1, 2, 3, 4, 5, 6])
+
+        engine.selectNextFreeCell(in: 2)
+        XCTAssertFalse(engine.completeActiveCell())
+        engine.selectNextFreeCell(in: 2)
+        XCTAssertTrue(engine.completeActiveCell())
+
+        XCTAssertEqual(engine.winner, .one)
+        XCTAssertEqual(engine.availableDiceValues, [1, 3, 4, 5, 6])
+
+        // No further moves after win
+        XCTAssertNil(engine.roll(forcedValue: 1))
+        XCTAssertNil(engine.activeCoordinate)
+        engine.selectNextFreeCell(in: 1)
+        XCTAssertNil(engine.activeCoordinate)
+        XCTAssertFalse(engine.completeActiveCell())
+    }
 }

@@ -3,9 +3,18 @@ import SwiftUI
 struct CarpetReadingView: View {
     @StateObject private var viewModel: CarpetReadingViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @State private var showRestartConfirmation = false
+    @State private var showExitConfirmation = false
+    @State private var micPulse = false
 
     init(carpet: Carpet, store: AppStore) {
         _viewModel = StateObject(wrappedValue: CarpetReadingViewModel(carpet: carpet, store: store))
+    }
+
+    private var hasProgress: Bool {
+        !viewModel.engine.completedTileIDs.isEmpty
     }
 
     var body: some View {
@@ -30,8 +39,12 @@ struct CarpetReadingView: View {
                     emoji: viewModel.carpet.motifEmoji,
                     title: "Super gelesen!",
                     subtitle: "Du hast \(viewModel.carpet.title) komplett geschafft und einen neuen Stern gesammelt!",
-                    buttonTitle: "Noch einmal oder weiter",
-                    onContinue: {
+                    earnedStars: viewModel.completedRuns,
+                    targetStars: viewModel.carpet.targetRepetitions,
+                    onRestart: {
+                        viewModel.restartCarpet()
+                    },
+                    onDismiss: {
                         viewModel.restartCarpet()
                         dismiss()
                     }
@@ -40,15 +53,44 @@ struct CarpetReadingView: View {
         }
         .navigationTitle(viewModel.carpet.title)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(hasProgress)
         .toolbar {
+            if hasProgress {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showExitConfirmation = true
+                    } label: {
+                        Image(systemName: "house.fill")
+                    }
+                    .accessibilityLabel("Zurück zur Übersicht")
+                }
+            }
+
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    viewModel.restartCarpet()
+                    if hasProgress {
+                        showRestartConfirmation = true
+                    } else {
+                        viewModel.restartCarpet()
+                    }
                 } label: {
                     Image(systemName: "arrow.counterclockwise")
                 }
                 .accessibilityLabel("Leseteppich neu starten")
             }
+        }
+        .confirmationDialog("Neu starten?", isPresented: $showRestartConfirmation, titleVisibility: .visible) {
+            Button("Neu starten", role: .destructive) {
+                viewModel.restartCarpet()
+            }
+            Button("Abbrechen", role: .cancel) {}
+        }
+        .confirmationDialog("Aufhören?", isPresented: $showExitConfirmation, titleVisibility: .visible) {
+            Button("Aufhören", role: .destructive) {
+                viewModel.stopAudioAndSpeech()
+                dismiss()
+            }
+            Button("Weiterlesen", role: .cancel) {}
         }
         .onAppear {
             viewModel.onAppear()
@@ -80,15 +122,6 @@ struct CarpetReadingView: View {
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
                     Spacer()
-                    if tile.isSinglePhoneme {
-                        Text("Einzellaut")
-                            .font(.caption.bold())
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(accent.opacity(0.15))
-                            .foregroundStyle(accent)
-                            .clipShape(Capsule())
-                    }
                 }
 
                 // Interactive large Silbenschrift display (tap individual syllables only when audio help is enabled)
@@ -109,7 +142,12 @@ struct CarpetReadingView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                statusBanner(accent: accent)
+                RecognitionStatusView(
+                    status: viewModel.recognitionStatus,
+                    audioLevel: viewModel.audioLevel,
+                    expectedText: tile.display,
+                    accentColor: accent
+                )
 
                 HStack(spacing: 14) {
                     if viewModel.allowAudioHelp {
@@ -118,8 +156,7 @@ struct CarpetReadingView: View {
                         } label: {
                             Label("Anhören", systemImage: "speaker.wave.2.fill")
                                 .font(.system(size: 18, weight: .bold, design: .rounded))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
+                                .frame(maxWidth: .infinity, minHeight: 64)
                                 .background(Color(.tertiarySystemFill))
                                 .foregroundStyle(.primary)
                                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -127,21 +164,36 @@ struct CarpetReadingView: View {
                     }
 
                     if !viewModel.allowAudioHelp || viewModel.mode == .read {
+                        let isActive = viewModel.isMicrophoneFlowActive
+                        let bgColor = isActive ? Color(hex: "#0E9F6E") : accent
+
                         Button {
                             viewModel.toggleListening()
                         } label: {
-                            let isActive = viewModel.isMicrophoneFlowActive
                             Label(
                                 isActive ? "Pause" : "Vorlesen",
                                 systemImage: isActive ? "stop.circle.fill" : "mic.fill"
                             )
                             .font(.system(size: 18, weight: .bold, design: .rounded))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(isActive ? Color.red : accent)
-                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity, minHeight: 64)
+                            .background(bgColor)
+                            .foregroundStyle(Color.contrastingForeground(for: bgColor))
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
+                        .scaleEffect(isActive && !reduceMotion && micPulse ? 1.03 : 1.0)
+                        .animation(
+                            isActive && !reduceMotion
+                                ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
+                                : .default,
+                            value: micPulse
+                        )
+                        .onChange(of: isActive) { _, active in
+                            micPulse = active && !reduceMotion
+                        }
+                        .onAppear {
+                            micPulse = isActive && !reduceMotion
+                        }
+                        .accessibilityLabel(isActive ? "Zuhören stoppen" : "Zuhören starten")
                     }
                 }
 
@@ -153,7 +205,8 @@ struct CarpetReadingView: View {
                         Label("Richtig gelesen – Weiter ✓", systemImage: "checkmark.circle.fill")
                             .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .foregroundStyle(.green)
-                            .padding(.top, 2)
+                            .frame(maxWidth: .infinity, minHeight: 60)
+                            .contentShape(Rectangle())
                     }
                 }
             }
@@ -161,56 +214,6 @@ struct CarpetReadingView: View {
             .background(Color(.secondarySystemGroupedBackground))
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
-        }
-    }
-
-    @ViewBuilder
-    private func statusBanner(accent: Color) -> some View {
-        switch viewModel.recognitionStatus {
-        case .idle:
-            EmptyView()
-        case .listening:
-            VStack(spacing: 6) {
-                AudioLevelView(level: viewModel.audioLevel, isListening: true, accentColor: accent)
-                Text("Ich höre zu – lies laut vor!")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(accent)
-            }
-        case .preparingNext:
-            HStack(spacing: 8) {
-                ProgressView()
-                    .tint(accent)
-                Text("Nächster Laut – mach dich bereit…")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundStyle(accent)
-            }
-            .padding(.vertical, 6)
-        case .matched(let transcript):
-            Label("Super! Erkannt: „\(transcript)“", systemImage: "checkmark.seal.fill")
-                .font(.system(size: 16, weight: .bold, design: .rounded))
-                .foregroundStyle(.green)
-                .padding(.vertical, 4)
-        case .retryNeeded(let heard):
-            VStack(spacing: 4) {
-                Text(
-                    viewModel.allowAudioHelp
-                        ? "Fast! Probier es noch einmal oder hör es dir kurz an."
-                        : "Fast! Probier es noch einmal!"
-                )
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundStyle(.orange)
-                .multilineTextAlignment(.center)
-                if let heard, !heard.isEmpty {
-                    Text("(Gehört: „\(heard)“)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-        case .unavailable(let message):
-            Text(message)
-                .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
         }
     }
 
@@ -232,7 +235,7 @@ struct CarpetReadingView: View {
                             showColors: viewModel.settings.showSyllableColors,
                             showArcs: false
                         )
-                        .frame(maxWidth: .infinity, minHeight: 58)
+                        .frame(maxWidth: .infinity, minHeight: 60)
                         .padding(.horizontal, 6)
 
                         if isDone {

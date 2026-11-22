@@ -9,7 +9,7 @@ struct ParentAreaView: View {
     @State private var showJSONImporter = false
     @State private var importStatusMessage: String?
     @State private var selectedStudioCarpetID: String = ""
-    @State private var recordingError: String?
+    @State private var carpetToReset: Carpet?
 
     var body: some View {
         NavigationStack {
@@ -38,6 +38,25 @@ struct ParentAreaView: View {
             ) { result in
                 handleJSONImport(result)
             }
+            .confirmationDialog(
+                "Fortschritt zurücksetzen?",
+                isPresented: Binding(
+                    get: { carpetToReset != nil },
+                    set: { if !$0 { carpetToReset = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: carpetToReset
+            ) { carpet in
+                Button("Fortschritt zurücksetzen", role: .destructive) {
+                    store.resetProgress(for: carpet.id)
+                    carpetToReset = nil
+                }
+                Button("Abbrechen", role: .cancel) {
+                    carpetToReset = nil
+                }
+            } message: { carpet in
+                Text("Alle gesammelten Sterne für „\(carpet.title)“ werden gelöscht.")
+            }
             .onAppear {
                 store.synthesizer.refreshVoices()
                 if selectedStudioCarpetID.isEmpty, let first = store.allCarpets.first {
@@ -55,17 +74,11 @@ struct ParentAreaView: View {
         Section("Darstellung (Silbenmethode)") {
             Toggle(
                 "Zweifarbige Silbenschrift",
-                isOn: Binding(
-                    get: { store.settings.showSyllableColors },
-                    set: { value in store.updateSettings { $0.showSyllableColors = value } }
-                )
+                isOn: store.settingBinding(\.showSyllableColors)
             )
             Toggle(
                 "Silbenbögen anzeigen",
-                isOn: Binding(
-                    get: { store.settings.showSyllableArcs },
-                    set: { value in store.updateSettings { $0.showSyllableArcs = value } }
-                )
+                isOn: store.settingBinding(\.showSyllableArcs)
             )
         }
     }
@@ -78,18 +91,12 @@ struct ParentAreaView: View {
         Section {
             Toggle(
                 "Automatisch weiterhören (Freihand-Lesen)",
-                isOn: Binding(
-                    get: { store.settings.autoListenNextTile },
-                    set: { value in store.updateSettings { $0.autoListenNextTile = value } }
-                )
+                isOn: store.settingBinding(\.autoListenNextTile)
             )
 
             Picker(
                 "Erkennungs-Genauigkeit",
-                selection: Binding(
-                    get: { store.settings.strictness },
-                    set: { value in store.updateSettings { $0.strictness = value } }
-                )
+                selection: store.settingBinding(\.strictness)
             ) {
                 ForEach(MatchingStrictness.allCases) { level in
                     Text(level.label).tag(level)
@@ -101,19 +108,13 @@ struct ParentAreaView: View {
                 .foregroundStyle(.secondary)
 
             Toggle(
-                "On-Device Spracherkennung bevorzugen",
-                isOn: Binding(
-                    get: { store.settings.preferOnDeviceRecognition },
-                    set: { value in store.updateSettings { $0.preferOnDeviceRecognition = value } }
-                )
+                "Offline-Spracherkennung (auf dem Gerät) bevorzugen",
+                isOn: store.settingBinding(\.preferOnDeviceRecognition)
             )
 
             Toggle(
                 "„Richtig gelesen ✓“-Hilfe anzeigen",
-                isOn: Binding(
-                    get: { store.settings.allowManualConfirm },
-                    set: { value in store.updateSettings { $0.allowManualConfirm = value } }
-                )
+                isOn: store.settingBinding(\.allowManualConfirm)
             )
         } header: {
             Text("Spracherkennung & Lesefluss")
@@ -124,27 +125,8 @@ struct ParentAreaView: View {
 
     private var voiceStudioSection: some View {
         Section {
-            Picker("Leseteppich", selection: $selectedStudioCarpetID) {
-                ForEach(store.allCarpets) { carpet in
-                    Text("\(carpet.motifEmoji) \(carpet.title)").tag(carpet.id)
-                }
-            }
-
-            if let carpet = store.allCarpets.first(where: { $0.id == selectedStudioCarpetID }) {
-                ForEach(carpet.tiles) { tile in
-                    VoiceStudioRow(
-                        tile: tile,
-                        store: store,
-                        recorder: store.voiceRecorder,
-                        onError: { recordingError = $0 }
-                    )
-                }
-            }
-
-            if let recordingError {
-                Text(recordingError)
-                    .font(.caption)
-                    .foregroundStyle(.red)
+            NavigationLink("Eigene Stimme aufnehmen") {
+                VoiceStudioView(store: store, selectedCarpetID: $selectedStudioCarpetID)
             }
         } header: {
             Text("Eltern-Stimm-Studio (Natürlichste Laute)")
@@ -184,8 +166,9 @@ struct ParentAreaView: View {
                     }
                 }
                 .onDelete { offsets in
-                    for idx in offsets {
-                        let id = store.persistedData.customCarpets[idx].id
+                    let carpets = store.persistedData.customCarpets
+                    let ids = offsets.map { carpets[$0].id }
+                    for id in ids {
                         store.deleteCustomCarpet(id: id)
                     }
                 }
@@ -193,7 +176,7 @@ struct ParentAreaView: View {
         } header: {
             Text("Eigene Leseteppiche (z. B. aus der Schule)")
         } footer: {
-            Text("Nutzt dasselbe plattformübergreifende JSON-Schema (shared/schema/leseteppich.schema.json) für iOS und Android.")
+            Text("Nutzt eine JSON-Datei zum Teilen zwischen Geräten (iOS und Android).")
         }
     }
 
@@ -208,7 +191,7 @@ struct ParentAreaView: View {
                         .foregroundStyle(.secondary)
                     if runs > 0 {
                         Button("Zurücksetzen", role: .destructive) {
-                            store.resetProgress(for: carpet.id)
+                            carpetToReset = carpet
                         }
                         .font(.caption)
                     }
@@ -245,10 +228,7 @@ private struct AudioHelpSettingsSection: View {
         Section {
             Toggle(
                 "Vorlesehilfe für Kinder anzeigen (Anhören)",
-                isOn: Binding(
-                    get: { store.settings.allowAudioHelp },
-                    set: { value in store.updateSettings { $0.allowAudioHelp = value } }
-                )
+                isOn: store.settingBinding(\.allowAudioHelp)
             )
 
             Picker(
@@ -284,10 +264,7 @@ private struct AudioHelpSettingsSection: View {
                         .foregroundStyle(.secondary)
                 }
                 Slider(
-                    value: Binding(
-                        get: { store.settings.speechRate },
-                        set: { value in store.updateSettings { $0.speechRate = value } }
-                    ),
+                    value: store.settingBinding(\.speechRate),
                     in: 0.38...0.56,
                     step: 0.02
                 )
@@ -315,6 +292,60 @@ private struct AudioHelpSettingsSection: View {
         if rate < 0.43 { return "Langsam" }
         if rate < 0.51 { return "Natürlich" }
         return "Flott"
+    }
+}
+
+private struct VoiceStudioView: View {
+    @ObservedObject var store: AppStore
+    @Binding var selectedCarpetID: String
+    @State private var recordingError: String?
+
+    var body: some View {
+        Form {
+            if !store.settings.allowAudioHelp {
+                Section {
+                    Label(
+                        "Aufnahmen werden nur abgespielt, wenn die Vorlesehilfe an ist.",
+                        systemImage: "info.circle"
+                    )
+                    .font(.subheadline)
+                    .foregroundStyle(.orange)
+                }
+            }
+
+            Section {
+                Picker("Leseteppich", selection: $selectedCarpetID) {
+                    ForEach(store.allCarpets) { carpet in
+                        Text("\(carpet.motifEmoji) \(carpet.title)").tag(carpet.id)
+                    }
+                }
+
+                if let carpet = store.allCarpets.first(where: { $0.id == selectedCarpetID }) {
+                    ForEach(carpet.tiles) { tile in
+                        VoiceStudioRow(
+                            tile: tile,
+                            store: store,
+                            recorder: store.voiceRecorder,
+                            onError: { recordingError = $0 }
+                        )
+                    }
+                }
+
+                if let recordingError {
+                    Text(recordingError)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+            } footer: {
+                Text("Sprich Laute wie „aaa“, „iii“, „nnn“ oder ganze Wörter selbst ein. Wenn eine eigene Aufnahme existiert, spielt die App immer deine Stimme statt der Computerstimme ab.")
+            }
+        }
+        .navigationTitle("Eigene Stimme aufnehmen")
+        .navigationBarTitleDisplayMode(.inline)
+        .onDisappear {
+            store.voiceRecorder.stopRecording()
+            store.synthesizer.stop()
+        }
     }
 }
 
@@ -353,6 +384,7 @@ private struct VoiceStudioRow: View {
                     .foregroundStyle(Color.accentColor)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Abspielen")
 
             Button {
                 toggleRecording(isRecordingThis: isRecordingThis)
@@ -362,6 +394,7 @@ private struct VoiceStudioRow: View {
                     .foregroundStyle(isRecordingThis ? .red : .orange)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(isRecordingThis ? "Aufnahme stoppen" : "Aufnehmen")
 
             if hasCustomAudio {
                 Button(role: .destructive) {
@@ -372,6 +405,7 @@ private struct VoiceStudioRow: View {
                         .font(.subheadline)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Löschen")
             }
         }
         .id(refreshTrigger)
@@ -391,5 +425,14 @@ private struct VoiceStudioRow: View {
                 }
             }
         }
+    }
+}
+
+private extension AppStore {
+    func settingBinding<T>(_ keyPath: WritableKeyPath<AppSettings, T>) -> Binding<T> {
+        Binding(
+            get: { self.settings[keyPath: keyPath] },
+            set: { value in self.updateSettings { $0[keyPath: keyPath] = value } }
+        )
     }
 }
