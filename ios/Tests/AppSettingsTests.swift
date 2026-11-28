@@ -23,6 +23,13 @@ final class AppSettingsTests: XCTestCase {
         XCTAssertFalse(decoded.allowAudioHelp)
         XCTAssertTrue(decoded.autoListenNextTile)
         XCTAssertNil(decoded.selectedVoiceIdentifier)
+        XCTAssertTrue(decoded.feedbackSounds)
+    }
+
+    func testFeedbackSoundsRoundTripsWhenDisabled() throws {
+        let data = try JSONEncoder().encode(AppSettings(feedbackSounds: false))
+        let decoded = try JSONDecoder().decode(AppSettings.self, from: data)
+        XCTAssertFalse(decoded.feedbackSounds)
     }
 
     func testVersion1AppSettingsMigratesAllowManualConfirmToFalse() throws {

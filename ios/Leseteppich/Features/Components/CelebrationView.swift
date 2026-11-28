@@ -59,6 +59,7 @@ struct CelebrationView: View {
                             .foregroundStyle(.white)
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
+                    .buttonStyle(PressableButtonStyle())
 
                     Button(action: onDismiss) {
                         Text("🏠 Zur Karte")
@@ -68,6 +69,7 @@ struct CelebrationView: View {
                             .foregroundStyle(.primary)
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
+                    .buttonStyle(PressableButtonStyle())
                 }
                 .padding(.top, 6)
             }

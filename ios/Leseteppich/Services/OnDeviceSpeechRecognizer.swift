@@ -31,6 +31,8 @@ public final class OnDeviceSpeechRecognizer: ObservableObject {
     private var lastSpeechTime: Date?
     private var hasEndedAudio: Bool = false
     private var endAudioTime: Date?
+    /// Called once per session when the mic stops (silence cutoff or safety timeout) and the final result is pending.
+    private var onEndOfSpeech: (@MainActor () -> Void)?
 
     public init(localeIdentifier: String = "de-DE") {
         self.localeIdentifier = localeIdentifier
@@ -120,7 +122,8 @@ public final class OnDeviceSpeechRecognizer: ObservableObject {
         silenceCutoff: TimeInterval = 0.95,
         onHypotheses: @escaping @MainActor ([String], Bool) -> Void,
         onAudioLevel: @escaping @MainActor (Double) -> Void,
-        onError: @escaping @MainActor (String) -> Void
+        onError: @escaping @MainActor (String) -> Void,
+        onEndOfSpeech: (@MainActor () -> Void)? = nil
     ) async {
         guard !Task.isCancelled else { return }
         // Tear down only: the audio session stays active across a restart (no deactivate/reactivate churn).
@@ -176,6 +179,7 @@ public final class OnDeviceSpeechRecognizer: ObservableObject {
             self.lastSpeechTime = nil
             self.hasEndedAudio = false
             self.endAudioTime = nil
+            self.onEndOfSpeech = onEndOfSpeech
 
             let inputNode = audioEngine.inputNode
             let recordingFormat = inputNode.outputFormat(forBus: 0)
@@ -303,6 +307,7 @@ public final class OnDeviceSpeechRecognizer: ObservableObject {
         lastSpeechTime = nil
         hasEndedAudio = false
         endAudioTime = nil
+        onEndOfSpeech = nil
     }
 
     /// False if a Stop/newer start replaced this session or the start task was cancelled.
@@ -337,6 +342,7 @@ public final class OnDeviceSpeechRecognizer: ObservableObject {
         }
         audioEngine.inputNode.removeTap(onBus: 0)
         recognitionRequest?.endAudio()
+        onEndOfSpeech?()
     }
 
     private func requestSpeechAuthorization() async -> SFSpeechRecognizerAuthorizationStatus {

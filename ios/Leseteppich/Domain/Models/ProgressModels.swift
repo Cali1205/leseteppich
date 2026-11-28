@@ -27,15 +27,58 @@ public enum MatchingStrictness: String, Codable, CaseIterable, Identifiable, Sen
     }
 }
 
+public enum TileRating: String, Codable, Sendable {
+    case firstTry
+    case afterRetry
+    /// Skipped after needing help: the tile was practised, not read.
+    case practiced
+}
+
+public struct RunResult: Codable, Equatable, Sendable {
+    public var date: Date
+    /// Keyed by tile id.
+    public var ratings: [String: TileRating]
+    public var stars: Int
+
+    public init(date: Date, ratings: [String: TileRating], stars: Int) {
+        self.date = date
+        self.ratings = ratings
+        self.stars = stars
+    }
+}
+
 public struct CarpetProgress: Codable, Equatable, Sendable {
     public let carpetID: String
     public var completedRuns: Int
     public var lastReadAt: Date?
+    public var lastRun: RunResult?
+    public var bestStars: Int
 
-    public init(carpetID: String, completedRuns: Int = 0, lastReadAt: Date? = nil) {
+    public init(
+        carpetID: String,
+        completedRuns: Int = 0,
+        lastReadAt: Date? = nil,
+        lastRun: RunResult? = nil,
+        bestStars: Int = 0
+    ) {
         self.carpetID = carpetID
         self.completedRuns = completedRuns
         self.lastReadAt = lastReadAt
+        self.lastRun = lastRun
+        self.bestStars = bestStars
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case carpetID, completedRuns, lastReadAt, lastRun, bestStars
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        carpetID = try container.decode(String.self, forKey: .carpetID)
+        completedRuns = try container.decodeIfPresent(Int.self, forKey: .completedRuns) ?? 0
+        lastReadAt = try container.decodeIfPresent(Date.self, forKey: .lastReadAt)
+        lastRun = try container.decodeIfPresent(RunResult.self, forKey: .lastRun)
+        bestStars = try container.decodeIfPresent(Int.self, forKey: .bestStars) ?? 0
     }
 }
 
@@ -56,6 +99,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var autoListenNextTile: Bool
     /// Optional identifier of the user-selected German AVSpeechSynthesisVoice.
     public var selectedVoiceIdentifier: String?
+    /// Short chimes for "your turn", success and "try again".
+    public var feedbackSounds: Bool
 
     enum CodingKeys: String, CodingKey {
         case settingsVersion
@@ -69,6 +114,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         case allowAudioHelp
         case autoListenNextTile
         case selectedVoiceIdentifier
+        case feedbackSounds
     }
 
     public init(
@@ -82,7 +128,8 @@ public struct AppSettings: Codable, Equatable, Sendable {
         autoAdvanceOnMatch: Bool = true,
         allowAudioHelp: Bool = false,
         autoListenNextTile: Bool = true,
-        selectedVoiceIdentifier: String? = nil
+        selectedVoiceIdentifier: String? = nil,
+        feedbackSounds: Bool = true
     ) {
         self.settingsVersion = settingsVersion
         self.showSyllableColors = showSyllableColors
@@ -95,6 +142,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         self.allowAudioHelp = allowAudioHelp
         self.autoListenNextTile = autoListenNextTile
         self.selectedVoiceIdentifier = selectedVoiceIdentifier
+        self.feedbackSounds = feedbackSounds
     }
 
     public init(from decoder: Decoder) throws {
@@ -109,6 +157,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         allowAudioHelp = try container.decodeIfPresent(Bool.self, forKey: .allowAudioHelp) ?? false
         autoListenNextTile = try container.decodeIfPresent(Bool.self, forKey: .autoListenNextTile) ?? true
         selectedVoiceIdentifier = try container.decodeIfPresent(String.self, forKey: .selectedVoiceIdentifier)
+        feedbackSounds = try container.decodeIfPresent(Bool.self, forKey: .feedbackSounds) ?? true
 
         if decodedVersion < Self.currentSettingsVersion {
             allowManualConfirm = false

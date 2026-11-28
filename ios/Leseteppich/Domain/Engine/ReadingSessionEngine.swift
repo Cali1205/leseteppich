@@ -20,12 +20,28 @@ public struct ReadingSessionEngine: Equatable, Sendable {
     public private(set) var activeIndex: Int
     public private(set) var completedTileIDs: Set<String>
     public private(set) var failedAttemptsOnCurrentTile: Int
+    /// Rating of each completed tile in the current run, keyed by tile id.
+    public private(set) var ratings: [String: TileRating]
 
     public init(carpet: Carpet) {
         self.carpet = carpet
         self.activeIndex = 0
         self.completedTileIDs = []
         self.failedAttemptsOnCurrentTile = 0
+        self.ratings = [:]
+    }
+
+    /// 3 stars if ≥ 80 % were read on the first try, 2 if ≥ 60 % were read without skipping, else 1.
+    /// Never below 1: finishing a carpet always earns a star.
+    public static func stars(for ratings: [TileRating]) -> Int {
+        guard !ratings.isEmpty else { return 1 }
+        let total = ratings.count
+        let firstTry = ratings.filter { $0 == .firstTry }.count
+        let read = ratings.filter { $0 != .practiced }.count
+        // Integer cross-multiplication keeps the exact 80 % / 60 % boundaries free of float rounding.
+        if firstTry * 5 >= total * 4 { return 3 }
+        if read * 5 >= total * 3 { return 2 }
+        return 1
     }
 
     public var activeTile: ReadingTile? {
@@ -48,10 +64,12 @@ public struct ReadingSessionEngine: Equatable, Sendable {
         failedAttemptsOnCurrentTile = 0
     }
 
+    /// `rating` nil derives it from the failed attempts: `.firstTry` without any, else `.afterRetry`.
     @discardableResult
-    public mutating func markCurrentTileCompleted(autoAdvance: Bool = true) -> Bool {
+    public mutating func markCurrentTileCompleted(autoAdvance: Bool = true, rating: TileRating? = nil) -> Bool {
         guard let tile = activeTile else { return false }
         completedTileIDs.insert(tile.id)
+        ratings[tile.id] = rating ?? (failedAttemptsOnCurrentTile == 0 ? .firstTry : .afterRetry)
         failedAttemptsOnCurrentTile = 0
 
         if autoAdvance {
@@ -68,6 +86,7 @@ public struct ReadingSessionEngine: Equatable, Sendable {
         activeIndex = 0
         completedTileIDs = []
         failedAttemptsOnCurrentTile = 0
+        ratings = [:]
     }
 
     private mutating func advanceToNextIncompleteTile() {

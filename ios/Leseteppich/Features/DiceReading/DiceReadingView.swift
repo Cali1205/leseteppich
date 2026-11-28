@@ -1,7 +1,9 @@
 import SwiftUI
+import UIKit
 
 struct DiceReadingView: View {
     @StateObject private var viewModel: DiceReadingViewModel
+    private let store: AppStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -9,8 +11,10 @@ struct DiceReadingView: View {
     @State private var showExitConfirmation = false
     @State private var showModeChangeConfirmation = false
     @State private var pendingTwoPlayerMode: Bool?
+    @State private var cellShakeCounts: [String: Int] = [:]
 
     init(board: DiceBoard, store: AppStore) {
+        self.store = store
         _viewModel = StateObject(wrappedValue: DiceReadingViewModel(board: board, store: store))
     }
 
@@ -148,14 +152,17 @@ struct DiceReadingView: View {
     }
 
     private var activeReadingPanel: some View {
-        VStack(spacing: 14) {
+        let isListening = viewModel.activeCell != nil && viewModel.recognitionStatus == .listening
+        let clampedLevel = isListening ? min(max(viewModel.audioLevel, 0), 1) : 0
+
+        return VStack(spacing: 14) {
             if let cell = viewModel.activeCell, let coord = viewModel.engine.activeCoordinate {
                 HStack {
                     Label("Spalte \(coord.diceValue)", systemImage: "die.face.\(coord.diceValue).fill")
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundStyle(.orange)
                     Spacer()
-                    Text("Stufe \(coord.rowIndex + 1) von \(viewModel.board.rowCount)")
+                    Text("Stufe \(coord.rowIndex + 1)/\(viewModel.board.rowCount)")
                         .font(.caption.bold())
                         .foregroundStyle(.secondary)
                 }
@@ -169,49 +176,63 @@ struct DiceReadingView: View {
                 )
                 .padding(.vertical, 8)
 
-                RecognitionStatusView(
+                ReadingFeedbackView(
                     status: viewModel.recognitionStatus,
                     audioLevel: viewModel.audioLevel,
-                    expectedText: cell.display,
                     accentColor: .orange
                 )
 
-                HStack(spacing: 12) {
-                    if viewModel.allowAudioHelp {
-                        Button {
-                            viewModel.speakActiveCell()
-                        } label: {
-                            Label("Anhören", systemImage: "speaker.wave.2.fill")
-                                .font(.system(size: 16, weight: .bold, design: .rounded))
-                                .frame(maxWidth: .infinity, minHeight: 64)
-                                .background(Color(.tertiarySystemFill))
-                                .foregroundStyle(.primary)
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        }
-                    }
-
-                    let isListening = viewModel.recognitionStatus == .listening || viewModel.recognitionStatus == .preparingNext
-
-                    MicToggleButton(
-                        isActive: isListening,
-                        accent: .orange,
-                        action: { viewModel.toggleListening() }
+                if viewModel.recognitionStatus == .needsHelp {
+                    NeedsHelpChoicesView(
+                        allowAudioHelp: viewModel.allowAudioHelp,
+                        accentColor: .orange,
+                        onHear: { viewModel.speakActiveCell() },
+                        onRetry: { viewModel.retryAfterHelp() },
+                        onSkip: { viewModel.skipActiveCell() }
                     )
+                } else {
+                    HStack(spacing: 12) {
+                        if viewModel.allowAudioHelp {
+                            Button {
+                                viewModel.speakActiveCell()
+                            } label: {
+                                Label("Anhören", systemImage: "speaker.wave.2.fill")
+                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .frame(maxWidth: .infinity, minHeight: 64)
+                                    .background(Color(.tertiarySystemFill))
+                                    .foregroundStyle(.primary)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            }
+                            .buttonStyle(PressableButtonStyle())
+                        }
+
+                        let isMicActive = viewModel.recognitionStatus == .ready
+                            || viewModel.recognitionStatus == .listening
+                            || viewModel.recognitionStatus == .evaluating
+                            || viewModel.recognitionStatus == .preparingNext
+
+                        MicToggleButton(
+                            isActive: isMicActive,
+                            accent: .orange,
+                            action: { viewModel.toggleListening() }
+                        )
+                    }
                 }
 
                 if viewModel.showsRescueConfirm {
                     Button {
                         viewModel.confirmActiveCell()
                     } label: {
-                        Label("Gelesen & ankreuzen ✓", systemImage: "checkmark.circle.fill")
+                        Label("Richtig gelesen ✓", systemImage: "checkmark.circle.fill")
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .foregroundStyle(.green)
                             .frame(maxWidth: .infinity, minHeight: 60)
                             .contentShape(Rectangle())
                     }
+                    .buttonStyle(PressableButtonStyle())
                 }
             } else {
-                HStack(spacing: 18) {
+                HStack(spacing: 14) {
                     Image(systemName: "die.face.\(viewModel.displayedDiceFace).fill")
                         .font(.system(size: 52))
                         .foregroundStyle(.orange)
@@ -230,6 +251,26 @@ struct DiceReadingView: View {
                             .font(.system(size: 14, weight: .medium, design: .rounded))
                             .foregroundStyle(.secondary)
                     }
+
+                    Spacer(minLength: 4)
+
+                    Button {
+                        viewModel.stopAudioAndSpeech()
+                        store.synthesizer.speakText(
+                            "Wer erreicht zuerst den Schatz? Würfle und lies das unterste freie Kästchen der Spalte vor.",
+                            rate: viewModel.settings.speechRate,
+                            voiceIdentifier: viewModel.settings.selectedVoiceIdentifier
+                        )
+                    } label: {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.orange)
+                            .frame(minWidth: 60, minHeight: 60)
+                            .background(Color.orange.opacity(0.14))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(PressableButtonStyle())
+                    .accessibilityLabel("Regeln anhören")
                 }
 
                 Button {
@@ -242,13 +283,30 @@ struct DiceReadingView: View {
                         .foregroundStyle(.white)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
+                .buttonStyle(PressableButtonStyle())
                 .disabled(viewModel.isRolling)
             }
         }
         .padding(18)
         .background(Color(.secondarySystemGroupedBackground))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(
+                    isListening
+                        ? Color.orange.opacity(reduceMotion ? 0.85 : (0.45 + clampedLevel * 0.55))
+                        : Color.clear,
+                    lineWidth: isListening ? (reduceMotion ? 3 : (2.5 + clampedLevel * 3.5)) : 0
+                )
+        )
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .shadow(color: .black.opacity(0.05), radius: 6, y: 3)
+        .shadow(
+            color: isListening && !reduceMotion
+                ? Color.orange.opacity(0.18 + clampedLevel * 0.32)
+                : .black.opacity(0.05),
+            radius: isListening && !reduceMotion ? (8 + clampedLevel * 12) : 6,
+            y: isListening ? 2 : 3
+        )
+        .animation(reduceMotion ? .none : .easeOut(duration: 0.1), value: clampedLevel)
     }
 
     private var treasureBoardGrid: some View {
@@ -278,14 +336,24 @@ struct DiceReadingView: View {
                             let isNextFree = viewModel.engine.nextFreeRowIndex(in: column.diceValue) == rowIndex
 
                             Button {
-                                viewModel.selectColumn(column.diceValue)
+                                if isNextFree {
+                                    viewModel.selectColumn(column.diceValue)
+                                } else {
+                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                    if !reduceMotion {
+                                        withAnimation(.easeOut(duration: 0.28)) {
+                                            cellShakeCounts[cell.id, default: 0] += 1
+                                        }
+                                    }
+                                }
                             } label: {
                                 cellTile(cell: cell, isActive: isActive, owner: owner)
                             }
-                            .buttonStyle(.plain)
-                            .disabled(!isNextFree)
+                            .buttonStyle(PressableButtonStyle())
+                            .modifier(LockedCellShakeEffect(animatableData: CGFloat(cellShakeCounts[cell.id, default: 0])))
                             .accessibilityLabel("\(cell.display), Würfel \(column.diceValue)")
                             .accessibilityValue(owner != nil ? "Geschafft" : (isActive ? "Aktuell" : ""))
+                            .accessibilityHint(isNextFree ? "" : "Noch gesperrt")
                         }
                     }
                 }
@@ -304,7 +372,7 @@ struct DiceReadingView: View {
                             .background(isSelectedColumn ? Color.orange.opacity(0.18) : Color(.secondarySystemGroupedBackground))
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PressableButtonStyle())
                     .accessibilityLabel("Würfel \(column.diceValue)")
                 }
             }
@@ -349,5 +417,20 @@ struct DiceReadingView: View {
 
     private func playerColor(_ player: DicePlayer) -> Color {
         player == .one ? .green : .purple
+    }
+}
+
+private struct LockedCellShakeEffect: GeometryEffect {
+    var amount: CGFloat = 6
+    var shakesPerUnit: CGFloat = 4
+    var animatableData: CGFloat
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(
+            CGAffineTransform(
+                translationX: amount * sin(animatableData * .pi * shakesPerUnit),
+                y: 0
+            )
+        )
     }
 }

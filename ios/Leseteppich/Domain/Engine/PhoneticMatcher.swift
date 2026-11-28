@@ -122,9 +122,10 @@ public struct PhoneticMatcher: Sendable {
         }
 
         // 3. Controlled Levenshtein similarity on phonetic keys (only for multi-character targets, never in strict mode)
+        // A non-match reports the best score as its confidence so callers can tell "almost" from "wrong".
+        var bestScore = 0.0
         if strictness != .strict {
             let threshold: Double = (strictness == .gentle) ? 0.75 : 0.84
-            var bestScore = 0.0
             var bestHyp: String?
 
             for rawHyp in hypotheses {
@@ -157,7 +158,7 @@ public struct PhoneticMatcher: Sendable {
 
         return RecognitionMatchResult(
             isMatch: false,
-            confidence: 0.0,
+            confidence: bestScore,
             matchedHypothesis: nil,
             reason: "no_match"
         )

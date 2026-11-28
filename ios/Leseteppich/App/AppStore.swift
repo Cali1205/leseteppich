@@ -59,10 +59,12 @@ public final class AppStore: ObservableObject {
         persistedData.progressByCarpetID[carpetID] ?? CarpetProgress(carpetID: carpetID)
     }
 
-    public func recordCarpetCompletion(carpetID: String) {
+    public func recordCarpetCompletion(carpetID: String, run: RunResult) {
         var current = progress(for: carpetID)
         current.completedRuns += 1
-        current.lastReadAt = Date()
+        current.lastReadAt = run.date
+        current.lastRun = run
+        current.bestStars = max(current.bestStars, run.stars)
         persistedData.progressByCarpetID[carpetID] = current
         persist()
     }

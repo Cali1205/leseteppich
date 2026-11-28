@@ -37,7 +37,7 @@ struct CarpetMapView: View {
                                         isNext: carpet.id == nextCarpetID
                                     )
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(PressableButtonStyle())
                             }
                         }
                     }
@@ -166,7 +166,7 @@ struct CarpetMapView: View {
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .shadow(color: .black.opacity(0.04), radius: 6, y: 3)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableButtonStyle())
     }
 }
 
@@ -177,8 +177,9 @@ private struct CarpetCardView: View {
 
     var body: some View {
         let accent = Color(hex: carpet.accentHex)
-        let stars = min(progress.completedRuns, carpet.targetRepetitions)
-        let isMastered = stars >= carpet.targetRepetitions
+        let completedRuns = min(progress.completedRuns, carpet.targetRepetitions)
+        let bestStars = min(max(progress.bestStars, 0), 3)
+        let isMastered = completedRuns >= carpet.targetRepetitions
 
         VStack(spacing: 10) {
             HStack {
@@ -203,7 +204,7 @@ private struct CarpetCardView: View {
 
             Text(carpet.motifEmoji)
                 .font(.system(size: 48))
-                .opacity(stars > 0 ? 1.0 : 0.78)
+                .opacity(completedRuns > 0 ? 1.0 : 0.78)
                 .padding(.vertical, 2)
 
             VStack(spacing: 2) {
@@ -216,15 +217,28 @@ private struct CarpetCardView: View {
                     .foregroundStyle(.secondary)
             }
 
-            // "So oft habe ich gelesen: 5 boxes/stars"
+            // Best star rating (0–3 stars)
             HStack(spacing: 4) {
-                ForEach(0..<carpet.targetRepetitions, id: \.self) { idx in
-                    Image(systemName: idx < stars ? "star.fill" : "star")
+                ForEach(0..<3, id: \.self) { idx in
+                    Image(systemName: idx < bestStars ? "star.fill" : "star")
                         .font(.system(size: 14))
-                        .foregroundStyle(idx < stars ? .yellow : Color.secondary.opacity(0.35))
+                        .foregroundStyle(idx < bestStars ? .yellow : Color.secondary.opacity(0.35))
                 }
             }
-            .padding(.top, 2)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Beste Bewertung: \(bestStars) von 3 Sternen")
+
+            // Repetition progress
+            HStack(spacing: 4) {
+                ForEach(0..<carpet.targetRepetitions, id: \.self) { idx in
+                    Image(systemName: idx < completedRuns ? "checkmark.square.fill" : "square")
+                        .font(.system(size: 12))
+                        .foregroundStyle(idx < completedRuns ? accent : Color.secondary.opacity(0.35))
+                }
+            }
+            .padding(.top, 1)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(completedRuns) von \(carpet.targetRepetitions) Runden")
 
             if isNext {
                 Label(

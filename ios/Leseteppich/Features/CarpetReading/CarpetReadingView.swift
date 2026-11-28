@@ -3,6 +3,7 @@ import SwiftUI
 struct CarpetReadingView: View {
     @StateObject private var viewModel: CarpetReadingViewModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var showRestartConfirmation = false
     @State private var showExitConfirmation = false
@@ -33,12 +34,16 @@ struct CarpetReadingView: View {
             .background(Color(.systemGroupedBackground))
 
             if viewModel.showCelebration {
-                CelebrationView(
-                    emoji: viewModel.carpet.motifEmoji,
-                    title: "Super gelesen!",
-                    subtitle: "Du hast \(viewModel.carpet.title) komplett geschafft und einen neuen Stern gesammelt!",
-                    earnedStars: viewModel.completedRuns,
-                    targetStars: viewModel.carpet.targetRepetitions,
+                let result = viewModel.lastRunResult ?? RunResult(
+                    date: Date(),
+                    ratings: viewModel.ratings,
+                    stars: 1
+                )
+                RunSummaryView(
+                    carpet: viewModel.carpet,
+                    result: result,
+                    completedRuns: viewModel.completedRuns,
+                    targetRepetitions: viewModel.carpet.targetRepetitions,
                     onRestart: {
                         viewModel.restartCarpet()
                     },
@@ -116,9 +121,12 @@ struct CarpetReadingView: View {
     @ViewBuilder
     private func focusCard(accent: Color) -> some View {
         if let tile = viewModel.activeTile {
+            let isListening = viewModel.recognitionStatus == .listening
+            let clampedLevel = isListening ? min(max(viewModel.audioLevel, 0), 1) : 0
+
             VStack(spacing: 16) {
                 HStack {
-                    Text("\(viewModel.carpet.motifEmoji) Feld \(viewModel.engine.activeIndex + 1) von \(viewModel.carpet.tiles.count)")
+                    Text("\(viewModel.carpet.motifEmoji) \(viewModel.engine.activeIndex + 1)/\(viewModel.carpet.tiles.count)")
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -137,38 +145,48 @@ struct CarpetReadingView: View {
                 .padding(.vertical, 10)
 
                 if viewModel.allowAudioHelp && tile.syllables.count > 1 {
-                    Text("Tipp: Tippe auf eine einzelne Silbe, um sie langsam zu hören.")
+                    Text("Tippe auf eine Silbe")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-                RecognitionStatusView(
+                ReadingFeedbackView(
                     status: viewModel.recognitionStatus,
                     audioLevel: viewModel.audioLevel,
-                    expectedText: tile.display,
                     accentColor: accent
                 )
 
-                HStack(spacing: 14) {
-                    if viewModel.allowAudioHelp {
-                        Button {
-                            viewModel.speakCurrentTile()
-                        } label: {
-                            Label("Anhören", systemImage: "speaker.wave.2.fill")
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
-                                .frame(maxWidth: .infinity, minHeight: 64)
-                                .background(Color(.tertiarySystemFill))
-                                .foregroundStyle(.primary)
-                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                if viewModel.recognitionStatus == .needsHelp {
+                    NeedsHelpChoicesView(
+                        allowAudioHelp: viewModel.allowAudioHelp,
+                        accentColor: accent,
+                        onHear: { viewModel.speakCurrentTile() },
+                        onRetry: { viewModel.retryAfterHelp() },
+                        onSkip: { viewModel.skipCurrentTile() }
+                    )
+                } else {
+                    HStack(spacing: 14) {
+                        if viewModel.allowAudioHelp {
+                            Button {
+                                viewModel.speakCurrentTile()
+                            } label: {
+                                Label("Anhören", systemImage: "speaker.wave.2.fill")
+                                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                                    .frame(maxWidth: .infinity, minHeight: 64)
+                                    .background(Color(.tertiarySystemFill))
+                                    .foregroundStyle(.primary)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            }
+                            .buttonStyle(PressableButtonStyle())
                         }
-                    }
 
-                    if !viewModel.allowAudioHelp || viewModel.mode == .read {
-                        MicToggleButton(
-                            isActive: viewModel.isMicrophoneFlowActive,
-                            accent: accent,
-                            action: { viewModel.toggleListening() }
-                        )
+                        if !viewModel.allowAudioHelp || viewModel.mode == .read {
+                            MicToggleButton(
+                                isActive: viewModel.isMicrophoneFlowActive,
+                                accent: accent,
+                                action: { viewModel.toggleListening() }
+                            )
+                        }
                     }
                 }
 
@@ -177,18 +195,35 @@ struct CarpetReadingView: View {
                     Button {
                         viewModel.confirmCurrentTileManually()
                     } label: {
-                        Label("Richtig gelesen – Weiter ✓", systemImage: "checkmark.circle.fill")
+                        Label("Richtig gelesen ✓", systemImage: "checkmark.circle.fill")
                             .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .foregroundStyle(.green)
                             .frame(maxWidth: .infinity, minHeight: 60)
                             .contentShape(Rectangle())
                     }
+                    .buttonStyle(PressableButtonStyle())
                 }
             }
             .padding(20)
             .background(Color(.secondarySystemGroupedBackground))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(
+                        isListening
+                            ? accent.opacity(reduceMotion ? 0.85 : (0.45 + clampedLevel * 0.55))
+                            : Color.clear,
+                        lineWidth: isListening ? (reduceMotion ? 3 : (2.5 + clampedLevel * 3.5)) : 0
+                    )
+            )
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
+            .shadow(
+                color: isListening && !reduceMotion
+                    ? accent.opacity(0.18 + clampedLevel * 0.32)
+                    : .black.opacity(0.05),
+                radius: isListening && !reduceMotion ? (8 + clampedLevel * 12) : 8,
+                y: isListening ? 2 : 4
+            )
+            .animation(reduceMotion ? .none : .easeOut(duration: 0.1), value: clampedLevel)
         }
     }
 
@@ -198,7 +233,9 @@ struct CarpetReadingView: View {
         return LazyVGrid(columns: gridColumns, spacing: 10) {
             ForEach(Array(viewModel.carpet.tiles.enumerated()), id: \.element.id) { index, tile in
                 let isActive = index == viewModel.engine.activeIndex
-                let isDone = viewModel.engine.completedTileIDs.contains(tile.id)
+                let rating = viewModel.ratings[tile.id]
+                let isDone = rating != nil || viewModel.engine.completedTileIDs.contains(tile.id)
+                let tileColor = rating?.tileTintColor ?? (isDone ? Color.green : Color.secondary)
 
                 Button {
                     viewModel.selectTile(at: index)
@@ -210,10 +247,19 @@ struct CarpetReadingView: View {
                             showColors: viewModel.settings.showSyllableColors,
                             showArcs: false
                         )
-                        .frame(maxWidth: .infinity, minHeight: 60)
+                        .frame(maxWidth: .infinity, minHeight: 64)
                         .padding(.horizontal, 6)
 
-                        if isDone {
+                        if let rating {
+                            TileRatingBadge(rating: rating, fontSize: 15)
+                                .padding(6)
+                                .id(rating)
+                                .transition(
+                                    reduceMotion
+                                        ? .opacity
+                                        : .scale(scale: 0.6).combined(with: .opacity)
+                                )
+                        } else if isDone {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(.system(size: 15))
                                 .foregroundStyle(.green)
@@ -221,20 +267,28 @@ struct CarpetReadingView: View {
                         }
                     }
                     .background(
-                        isDone
-                            ? Color.green.opacity(0.14)
-                            : (isActive ? accent.opacity(0.15) : Color(.secondarySystemGroupedBackground))
+                        isActive
+                            ? accent.opacity(0.18)
+                            : (isDone ? tileColor.opacity(0.14) : Color(.secondarySystemGroupedBackground))
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .stroke(
-                                isActive ? accent : (isDone ? Color.green.opacity(0.5) : Color.secondary.opacity(0.18)),
-                                lineWidth: isActive ? 3 : 1.2
+                                isActive ? accent : (isDone ? tileColor.opacity(0.55) : Color.secondary.opacity(0.18)),
+                                lineWidth: isActive ? 3.5 : 1.2
                             )
                     )
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .scaleEffect(isActive && !reduceMotion ? 1.03 : 1.0)
+                    .shadow(color: isActive ? accent.opacity(0.22) : .clear, radius: 5, y: 2)
+                    .animation(
+                        reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.35, bounce: 0.35),
+                        value: rating
+                    )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PressableButtonStyle())
+                .accessibilityLabel(tile.display)
+                .accessibilityValue(rating?.accessibilityText ?? (isActive ? "Aktuell" : (isDone ? "Geschafft" : "")))
             }
         }
     }

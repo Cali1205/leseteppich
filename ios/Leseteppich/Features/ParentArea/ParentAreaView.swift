@@ -113,6 +113,11 @@ struct ParentAreaView: View {
                 "„Richtig gelesen ✓“-Hilfe anzeigen",
                 isOn: store.settingBinding(\.allowManualConfirm)
             )
+
+            Toggle(
+                "Töne bei Rückmeldung",
+                isOn: store.settingBinding(\.feedbackSounds)
+            )
         } header: {
             Text("Spracherkennung & Lesefluss")
         } footer: {
@@ -180,19 +185,50 @@ struct ParentAreaView: View {
     private var progressSection: some View {
         Section("Fortschritt verwalten") {
             ForEach(store.allCarpets) { carpet in
-                let runs = store.progress(for: carpet.id).completedRuns
-                HStack {
-                    Text("\(carpet.motifEmoji) \(carpet.title)")
-                    Spacer()
-                    Text("\(runs)/\(carpet.targetRepetitions)x")
-                        .foregroundStyle(.secondary)
-                    if runs > 0 {
-                        Button("Zurücksetzen", role: .destructive) {
-                            carpetToReset = carpet
+                let progress = store.progress(for: carpet.id)
+                let runs = progress.completedRuns
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("\(carpet.motifEmoji) \(carpet.title)")
+                        Spacer()
+                        if let lastRun = progress.lastRun {
+                            let stars = min(max(lastRun.stars, 0), 3)
+                            HStack(spacing: 2) {
+                                ForEach(0..<3, id: \.self) { idx in
+                                    Image(systemName: idx < stars ? "star.fill" : "star")
+                                        .font(.caption2)
+                                        .foregroundStyle(idx < stars ? .yellow : Color.secondary.opacity(0.35))
+                                }
+                            }
                         }
-                        .font(.caption)
+                        Text("\(runs)/\(carpet.targetRepetitions)x")
+                            .foregroundStyle(.secondary)
+                        if runs > 0 || progress.lastRun != nil || progress.bestStars > 0 {
+                            Button("Zurücksetzen", role: .destructive) {
+                                carpetToReset = carpet
+                            }
+                            .font(.caption)
+                        }
+                    }
+
+                    if let lastRun = progress.lastRun {
+                        let practiceDisplays = carpet.tiles.compactMap { tile -> String? in
+                            guard let rating = lastRun.ratings[tile.id],
+                                  rating == .practiced || rating == .afterRetry else {
+                                return nil
+                            }
+                            return tile.display
+                        }
+
+                        if !practiceDisplays.isEmpty {
+                            Text("Übt noch: \(practiceDisplays.joined(separator: ", "))")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
+                .padding(.vertical, 2)
             }
         }
     }

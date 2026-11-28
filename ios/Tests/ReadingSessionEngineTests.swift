@@ -84,4 +84,38 @@ final class ReadingSessionEngineTests: XCTestCase {
         XCTAssertEqual(engine.activeIndex, 0)
         XCTAssertEqual(engine.failedAttemptsOnCurrentTile, 1)
     }
+
+    func testRatingsRecordFirstTryAfterRetryAndPracticed() {
+        var engine = ReadingSessionEngine(carpet: makeSampleCarpet())
+
+        engine.markCurrentTileCompleted()
+        engine.recordFailedAttempt()
+        engine.markCurrentTileCompleted()
+        engine.recordFailedAttempt()
+        engine.recordFailedAttempt()
+        engine.markCurrentTileCompleted(rating: .practiced)
+        // A manual confirm with zero failed attempts still counts as read on the first try.
+        engine.markCurrentTileCompleted(rating: nil)
+
+        XCTAssertEqual(engine.ratings, ["t1": .firstTry, "t2": .afterRetry, "t3": .practiced, "t4": .firstTry])
+        XCTAssertTrue(engine.isCompleted)
+
+        engine.reset()
+        XCTAssertTrue(engine.ratings.isEmpty)
+    }
+
+    func testStarsThresholds() {
+        typealias E = ReadingSessionEngine
+        XCTAssertEqual(E.stars(for: []), 1)
+        XCTAssertEqual(E.stars(for: [.firstTry, .firstTry]), 3)
+        // Exactly 80 % first try → 3.
+        XCTAssertEqual(E.stars(for: [.firstTry, .firstTry, .firstTry, .firstTry, .practiced]), 3)
+        // 75 % first try, but everything read → 2.
+        XCTAssertEqual(E.stars(for: [.firstTry, .firstTry, .firstTry, .afterRetry]), 2)
+        // Exactly 60 % read (first try + after retry) → 2.
+        XCTAssertEqual(E.stars(for: [.firstTry, .afterRetry, .afterRetry, .practiced, .practiced]), 2)
+        // 40 % read → 1, never 0.
+        XCTAssertEqual(E.stars(for: [.firstTry, .afterRetry, .practiced, .practiced, .practiced]), 1)
+        XCTAssertEqual(E.stars(for: [.practiced, .practiced]), 1)
+    }
 }
