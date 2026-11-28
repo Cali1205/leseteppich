@@ -104,6 +104,29 @@ final class ReadingSessionEngineTests: XCTestCase {
         XCTAssertTrue(engine.ratings.isEmpty)
     }
 
+    func testCompletingAgainReportsCarpetCompletionOnlyOnce() {
+        var engine = ReadingSessionEngine(carpet: makeSampleCarpet())
+        for _ in 0..<3 { XCTAssertFalse(engine.markCurrentTileCompleted()) }
+        XCTAssertTrue(engine.markCurrentTileCompleted())
+        // The last tile stays active; a second confirm must not report the run finished again.
+        XCTAssertFalse(engine.markCurrentTileCompleted())
+        XCTAssertFalse(engine.markCurrentTileCompleted(rating: .practiced))
+        XCTAssertTrue(engine.isCompleted)
+    }
+
+    func testRatingIsKeptFromFirstCompletionInRun() {
+        var engine = ReadingSessionEngine(carpet: makeSampleCarpet())
+        engine.markCurrentTileCompleted(autoAdvance: false)
+        engine.recordFailedAttempt()
+        engine.markCurrentTileCompleted(autoAdvance: false)
+        engine.markCurrentTileCompleted(autoAdvance: false, rating: .practiced)
+        XCTAssertEqual(engine.ratings, ["t1": .firstTry])
+
+        engine.reset()
+        engine.markCurrentTileCompleted(autoAdvance: false, rating: .practiced)
+        XCTAssertEqual(engine.ratings, ["t1": .practiced])
+    }
+
     func testStarsThresholds() {
         typealias E = ReadingSessionEngine
         XCTAssertEqual(E.stars(for: []), 1)

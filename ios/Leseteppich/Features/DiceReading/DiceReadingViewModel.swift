@@ -31,9 +31,9 @@ final class DiceReadingViewModel: ObservableObject {
         backgroundObserver = NotificationCenter.default
             .publisher(for: UIApplication.didEnterBackgroundNotification)
             .sink { [weak self] _ in
-                Task { @MainActor in
+                // Posted on the main thread: stop synchronously, before the app suspends with a task still pending.
+                MainActor.assumeIsolated {
                     self?.stopAudioAndSpeech()
-                    self?.recognitionStatus = .idle
                 }
             }
     }
@@ -56,17 +56,16 @@ final class DiceReadingViewModel: ObservableObject {
     }
 
     func setTwoPlayerMode(_ enabled: Bool) {
+        matchedCellID = nil // the game restarts: don't commit (and maybe record a win for) a read in its success hold
         stopAudioAndSpeech()
         engine.reset(twoPlayerMode: enabled)
         failedAttemptsOnCurrentCell = 0
-        recognitionStatus = .idle
         showWinnerCelebration = false
     }
 
     func rollDice() {
         guard !isRolling, engine.winner == nil else { return }
         stopAudioAndSpeech()
-        recognitionStatus = .idle
         // Stopping may have completed a just-recognized cell, and that one can win the game.
         guard engine.winner == nil else { return }
         failedAttemptsOnCurrentCell = 0
@@ -92,7 +91,6 @@ final class DiceReadingViewModel: ObservableObject {
 
     func selectColumn(_ diceValue: Int) {
         stopAudioAndSpeech()
-        recognitionStatus = .idle
         let previousCellID = engine.activeCell?.id
         engine.selectNextFreeCell(in: diceValue)
         if engine.activeCell?.id != previousCellID {
@@ -103,10 +101,19 @@ final class DiceReadingViewModel: ObservableObject {
 
     func speakActiveCell() {
         guard allowAudioHelp, let cell = engine.activeCell else { return }
-        stopAudioAndSpeech()
-        recognitionStatus = .idle
+        stopLoopForSpeech()
         store.synthesizer.speak(
             tile: cell.asReadingTile,
+            rate: settings.speechRate,
+            voiceIdentifier: settings.selectedVoiceIdentifier
+        )
+    }
+
+    /// Reads the game rules aloud; offered even when audio help for the words is off.
+    func speakRules() {
+        stopLoopForSpeech()
+        store.synthesizer.speakText(
+            "Wer erreicht zuerst den Schatz? Würfle und lies das unterste freie Kästchen der Spalte vor.",
             rate: settings.speechRate,
             voiceIdentifier: settings.selectedVoiceIdentifier
         )
@@ -116,7 +123,6 @@ final class DiceReadingViewModel: ObservableObject {
         // Also covers the permission-prompt phase (status already .listening, recognizer not yet).
         if store.speechRecognizer.isListening || isMicrophoneFlowActive {
             stopAudioAndSpeech()
-            recognitionStatus = .idle
             return
         }
         beginTurn()
@@ -124,11 +130,13 @@ final class DiceReadingViewModel: ObservableObject {
 
     /// From `.needsHelp`: try the same cell again. The failed-attempt counter keeps counting.
     func retryAfterHelp() {
+        guard recognitionStatus == .needsHelp else { return }
         beginTurn()
     }
 
     /// From `.needsHelp`: mark the cell as done, like a manual confirm.
     func skipActiveCell() {
+        guard recognitionStatus == .needsHelp else { return }
         confirmActiveCell()
     }
 
@@ -139,10 +147,10 @@ final class DiceReadingViewModel: ObservableObject {
     }
 
     func restartGame() {
+        matchedCellID = nil // explicit restart: discard a read still inside its success hold
         stopAudioAndSpeech()
         engine.reset()
         failedAttemptsOnCurrentCell = 0
-        recognitionStatus = .idle
         showWinnerCelebration = false
     }
 
@@ -162,6 +170,13 @@ final class DiceReadingViewModel: ObservableObject {
             completeActiveCell()
         }
         matchedCellID = nil
+        recognitionStatus = .idle
+    }
+
+    /// Before "Hör mal": in `.needsHelp` the loop is already paused, and the help choices must stay visible.
+    private func stopLoopForSpeech() {
+        guard recognitionStatus != .needsHelp else { return }
+        stopAudioAndSpeech()
     }
 
     private func completeActiveCell() {
@@ -175,16 +190,19 @@ final class DiceReadingViewModel: ObservableObject {
         }
     }
 
-    /// `.ready` + "your turn" chime, then the mic opens after `ReadAloudFlow.readyDelay`.
+    /// `.ready` + "your turn" chime; the mic opens once the chime is over, after at least `ReadAloudFlow.readyDelay`.
     private func beginTurn() {
         guard let cell = engine.activeCell else { return }
         pendingTask?.cancel()
         store.synthesizer.stop()
         recognitionStatus = .ready
-        FeedbackSounds.play(.yourTurn, enabled: settings.feedbackSounds)
+        let soundsEnabled = settings.feedbackSounds
 
         pendingTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(ReadAloudFlow.readyDelay))
+            let readyUntil = ContinuousClock.now + .seconds(ReadAloudFlow.readyDelay)
+            await FeedbackSounds.playAndWait(.yourTurn, enabled: soundsEnabled)
+            try? await Task.sleep(for: .seconds(ReadAloudFlow.chimeToMicGap))
+            try? await Task.sleep(until: readyUntil, clock: .continuous)
             guard !Task.isCancelled, let self, self.engine.activeCell?.id == cell.id else { return }
             self.startListening(for: cell)
         }

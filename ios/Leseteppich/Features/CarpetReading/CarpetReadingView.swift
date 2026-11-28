@@ -33,12 +33,7 @@ struct CarpetReadingView: View {
             }
             .background(Color(.systemGroupedBackground))
 
-            if viewModel.showCelebration {
-                let result = viewModel.lastRunResult ?? RunResult(
-                    date: Date(),
-                    ratings: viewModel.ratings,
-                    stars: 1
-                )
+            if viewModel.showCelebration, let result = viewModel.lastRunResult {
                 RunSummaryView(
                     carpet: viewModel.carpet,
                     result: result,
@@ -122,7 +117,6 @@ struct CarpetReadingView: View {
     private func focusCard(accent: Color) -> some View {
         if let tile = viewModel.activeTile {
             let isListening = viewModel.recognitionStatus == .listening
-            let clampedLevel = isListening ? min(max(viewModel.audioLevel, 0), 1) : 0
 
             VStack(spacing: 16) {
                 HStack {
@@ -172,7 +166,7 @@ struct CarpetReadingView: View {
                             } label: {
                                 Label("Anhören", systemImage: "speaker.wave.2.fill")
                                     .font(.system(size: 18, weight: .bold, design: .rounded))
-                                    .frame(maxWidth: .infinity, minHeight: 64)
+                                    .frame(maxWidth: .infinity, minHeight: 72)
                                     .background(Color(.tertiarySystemFill))
                                     .foregroundStyle(.primary)
                                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -208,22 +202,10 @@ struct CarpetReadingView: View {
             .background(Color(.secondarySystemGroupedBackground))
             .overlay(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(
-                        isListening
-                            ? accent.opacity(reduceMotion ? 0.85 : (0.45 + clampedLevel * 0.55))
-                            : Color.clear,
-                        lineWidth: isListening ? (reduceMotion ? 3 : (2.5 + clampedLevel * 3.5)) : 0
-                    )
+                    .stroke(isListening ? accent.opacity(0.75) : Color.clear, lineWidth: isListening ? 2.5 : 0)
             )
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .shadow(
-                color: isListening && !reduceMotion
-                    ? accent.opacity(0.18 + clampedLevel * 0.32)
-                    : .black.opacity(0.05),
-                radius: isListening && !reduceMotion ? (8 + clampedLevel * 12) : 8,
-                y: isListening ? 2 : 4
-            )
-            .animation(reduceMotion ? .none : .easeOut(duration: 0.1), value: clampedLevel)
+            .shadow(color: .black.opacity(0.05), radius: 8, y: 4)
         }
     }
 
@@ -284,6 +266,10 @@ struct CarpetReadingView: View {
                     .animation(
                         reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.35, bounce: 0.35),
                         value: rating
+                    )
+                    .animation(
+                        reduceMotion ? .easeOut(duration: 0.2) : .spring(duration: 0.35, bounce: 0.35),
+                        value: isActive
                     )
                 }
                 .buttonStyle(PressableButtonStyle())

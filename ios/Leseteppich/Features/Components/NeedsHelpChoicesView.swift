@@ -12,11 +12,10 @@ struct NeedsHelpChoicesView: View {
         HStack(spacing: 10) {
             if allowAudioHelp {
                 choiceButton(
-                    icon: "👂",
+                    icon: "🔊",
                     title: "Hör mal",
                     foreground: .blue,
                     background: Color.blue.opacity(0.14),
-                    accessibilityLabel: "Hör mal",
                     action: onHear
                 )
             }
@@ -26,7 +25,6 @@ struct NeedsHelpChoicesView: View {
                 title: "Nochmal",
                 foreground: accentColor.contrastingForeground,
                 background: accentColor,
-                accessibilityLabel: "Nochmal",
                 action: onRetry
             )
 
@@ -35,7 +33,6 @@ struct NeedsHelpChoicesView: View {
                 title: "Weiter",
                 foreground: .primary,
                 background: Color(.tertiarySystemFill),
-                accessibilityLabel: "Weiter",
                 action: onSkip
             )
         }
@@ -46,7 +43,6 @@ struct NeedsHelpChoicesView: View {
         title: String,
         foreground: Color,
         background: Color,
-        accessibilityLabel: String,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
@@ -59,12 +55,12 @@ struct NeedsHelpChoicesView: View {
                     .minimumScaleFactor(0.75)
             }
             .foregroundStyle(foreground)
-            .frame(maxWidth: .infinity, minHeight: 76)
+            .frame(maxWidth: .infinity, minHeight: 72)
             .padding(.horizontal, 6)
             .background(background)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(PressableButtonStyle())
-        .accessibilityLabel(accessibilityLabel)
+        .accessibilityLabel(title)
     }
 }

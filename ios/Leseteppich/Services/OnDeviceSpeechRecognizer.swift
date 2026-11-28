@@ -194,7 +194,8 @@ public final class OnDeviceSpeechRecognizer: ObservableObject {
                 request?.append(buffer)
                 let level = Self.calculateNormalizedRMS(buffer: buffer)
                 Task { @MainActor [weak self] in
-                    guard let self, self.activeSession == session else { return }
+                    // After endAudio, late buffers must not repaint the level meter during `.evaluating`.
+                    guard let self, self.activeSession == session, !self.hasEndedAudio else { return }
                     self.audioLevel = level
                     self.updateVoiceActivity(level: level)
                     onAudioLevel(level)
@@ -220,15 +221,14 @@ public final class OnDeviceSpeechRecognizer: ObservableObject {
                     // The final-result path above already ended this session; don't handle a trailing error.
                     if let error, self.activeSession == session {
                         let nsError = error as NSError
-                        // Ignore benign cancellation (216/203) and no-speech-detected (1110) handled via retry
-                        if nsError.code == 1110 {
-                            self.stopListening()
+                        self.stopListening()
+                        // No speech (1110) and iOS-side cancellation (203/216) of this still-active session end the
+                        // attempt as "heard nothing", so the caller never stays stuck in listening/evaluating.
+                        // Our own cancels never get here: teardown clears `activeSession` first.
+                        if [1110, 203, 216].contains(nsError.code) {
                             onHypotheses([], true)
-                        } else if nsError.code != 216 && nsError.code != 203 {
-                            self.stopListening()
-                            onError("Ich konnte das nicht ganz verstehen. Probier es noch einmal!")
                         } else {
-                            self.stopListening()
+                            onError("Ich konnte das nicht ganz verstehen. Probier es noch einmal!")
                         }
                     }
                 }

@@ -32,7 +32,7 @@ struct ReadingFeedbackView: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: 148)
-        .modifier(RetryShakeEffect(animatableData: CGFloat(retryShakeCount)))
+        .modifier(ShakeEffect(animatableData: CGFloat(retryShakeCount)))
         .animation(
             reduceMotion
                 ? .easeOut(duration: 0.2)
@@ -156,16 +156,6 @@ struct ReadingFeedbackView: View {
                     .foregroundStyle(.orange)
             }
 
-        case .preparingNext:
-            VStack(spacing: 6) {
-                Image(systemName: "arrow.right.circle.fill")
-                    .font(.system(size: 56))
-                    .foregroundStyle(.blue)
-                Text("Weiter…")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundStyle(.blue)
-            }
-
         case .unavailable(let message):
             VStack(spacing: 6) {
                 Image(systemName: "mic.slash.fill")
@@ -184,9 +174,9 @@ struct ReadingFeedbackView: View {
     private func retryVisualSpec(for reason: RetryReason) -> (emoji: String, label: String) {
         switch reason {
         case .heardNothing:
-            return ("🔊", "Lauter!")
+            return ("📢", "Lauter!")
         case .close:
-            return ("🟠", "Fast! Nochmal")
+            return ("👍", "Fast! Nochmal")
         case .wrong:
             return ("🔁", "Nochmal")
         }
@@ -196,7 +186,7 @@ struct ReadingFeedbackView: View {
         switch status {
         case .idle:
             return Color(.tertiarySystemFill).opacity(0.6)
-        case .ready, .preparingNext:
+        case .ready:
             return Color.blue.opacity(0.11)
         case .listening:
             return accentColor.opacity(0.12)
@@ -215,7 +205,7 @@ struct ReadingFeedbackView: View {
         switch status {
         case .idle, .unavailable:
             return Color.secondary.opacity(0.18)
-        case .ready, .preparingNext:
+        case .ready:
             return Color.blue.opacity(0.35)
         case .listening:
             return accentColor.opacity(0.45)
@@ -237,7 +227,6 @@ struct ReadingFeedbackView: View {
         case .matched: return "matched"
         case .retryNeeded(let reason): return "retry_\(reason)"
         case .needsHelp: return "needsHelp"
-        case .preparingNext: return "preparingNext"
         case .unavailable(let message): return "unavailable_\(message)"
         }
     }
@@ -265,9 +254,14 @@ struct ReadingFeedbackView: View {
             }
         }
 
-        let announcement = accessibilityText(for: newStatus)
-        if !announcement.isEmpty {
-            UIAccessibility.post(notification: .announcement, argument: announcement)
+        switch newStatus {
+        case .ready, .listening, .evaluating:
+            break
+        default:
+            let announcement = accessibilityText(for: newStatus)
+            if !announcement.isEmpty {
+                UIAccessibility.post(notification: .announcement, argument: announcement)
+            }
         }
     }
 
@@ -291,8 +285,6 @@ struct ReadingFeedbackView: View {
             }
         case .needsHelp:
             return "Probier’s so"
-        case .preparingNext:
-            return "Weiter"
         case .unavailable(let message):
             return message.isEmpty ? "Kein Mikrofon verfügbar" : message
         }
@@ -328,20 +320,5 @@ private struct EvaluatingDotsView: View {
                 pulse = true
             }
         }
-    }
-}
-
-private struct RetryShakeEffect: GeometryEffect {
-    var amount: CGFloat = 6
-    var shakesPerUnit: CGFloat = 4
-    var animatableData: CGFloat
-
-    func effectValue(size: CGSize) -> ProjectionTransform {
-        ProjectionTransform(
-            CGAffineTransform(
-                translationX: amount * sin(animatableData * .pi * shakesPerUnit),
-                y: 0
-            )
-        )
     }
 }

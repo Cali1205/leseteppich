@@ -13,13 +13,13 @@ struct MicToggleButton: View {
         Button(action: action) {
             Group {
                 if isActive {
-                    Text("⏸ Pause")
+                    Label("Pause", systemImage: "pause.fill")
                 } else {
-                    Label("▶︎ Start", systemImage: "mic.fill")
+                    Label("Start", systemImage: "mic.fill")
                 }
             }
             .font(.system(size: 18, weight: .bold, design: .rounded))
-            .frame(maxWidth: .infinity, minHeight: 64)
+            .frame(maxWidth: .infinity, minHeight: 72)
             .background(bgColor)
             .foregroundStyle(bgColor.contrastingForeground)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))

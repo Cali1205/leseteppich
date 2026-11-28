@@ -18,7 +18,3 @@ struct PressableButtonStyle: ButtonStyle {
         }
     }
 }
-
-extension ButtonStyle where Self == PressableButtonStyle {
-    static var pressable: PressableButtonStyle { PressableButtonStyle() }
-}

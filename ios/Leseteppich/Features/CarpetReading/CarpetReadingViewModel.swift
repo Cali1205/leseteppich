@@ -33,9 +33,9 @@ final class CarpetReadingViewModel: ObservableObject {
         backgroundObserver = NotificationCenter.default
             .publisher(for: UIApplication.didEnterBackgroundNotification)
             .sink { [weak self] _ in
-                Task { @MainActor in
-                    self?.stopContinuousReading()
-                    self?.recognitionStatus = .idle
+                // Posted on the main thread: stop synchronously, before the app suspends with a task still pending.
+                MainActor.assumeIsolated {
+                    self?.stopAudioAndSpeech()
                 }
             }
     }
@@ -75,8 +75,7 @@ final class CarpetReadingViewModel: ObservableObject {
 
     func speakCurrentTile() {
         guard allowAudioHelp, let tile = engine.activeTile else { return }
-        stopContinuousReading()
-        recognitionStatus = .idle
+        stopLoopForSpeech()
         store.synthesizer.speak(
             tile: tile,
             rate: settings.speechRate,
@@ -86,8 +85,7 @@ final class CarpetReadingViewModel: ObservableObject {
 
     func speakSyllable(_ syllable: String) {
         guard allowAudioHelp else { return }
-        stopContinuousReading()
-        recognitionStatus = .idle
+        stopLoopForSpeech()
         store.synthesizer.speakSyllable(
             syllable,
             rate: settings.speechRate,
@@ -109,11 +107,13 @@ final class CarpetReadingViewModel: ObservableObject {
 
     /// From `.needsHelp`: try the same tile again. The failed-attempt counter keeps counting.
     func retryAfterHelp() {
+        guard recognitionStatus == .needsHelp else { return }
         beginTurn()
     }
 
     /// From `.needsHelp`: move on, rating the tile as practised.
     func skipCurrentTile() {
+        guard recognitionStatus == .needsHelp else { return }
         finishActiveTileManually(rating: .practiced)
     }
 
@@ -122,15 +122,25 @@ final class CarpetReadingViewModel: ObservableObject {
     }
 
     func restartCarpet() {
-        stopContinuousReading()
+        // An explicit restart discards a read still inside its success hold instead of committing it.
+        matchedTileID = nil
+        stopAudioAndSpeech()
         engine.reset()
-        recognitionStatus = .idle
+        lastRunResult = nil
         showCelebration = false
     }
 
     func stopAudioAndSpeech() {
         stopContinuousReading()
         store.synthesizer.stop()
+        recognitionStatus = .idle
+    }
+
+    /// Before "Hör mal": in `.needsHelp` the loop is already paused, and the help choices must stay visible.
+    private func stopLoopForSpeech() {
+        guard recognitionStatus != .needsHelp else { return }
+        stopContinuousReading()
+        recognitionStatus = .idle
     }
 
     private func finishActiveTileManually(rating: TileRating?) {
@@ -166,7 +176,7 @@ final class CarpetReadingViewModel: ObservableObject {
         autoContinueTask = nil
     }
 
-    /// `.ready` + "your turn" chime, then the mic opens after `ReadAloudFlow.readyDelay`.
+    /// `.ready` + "your turn" chime; the mic opens once the chime is over, after at least `ReadAloudFlow.readyDelay`.
     private func beginTurn() {
         guard let tile = engine.activeTile else {
             isContinuousReadingActive = false
@@ -177,10 +187,13 @@ final class CarpetReadingViewModel: ObservableObject {
         cancelPendingAutoContinue()
         store.synthesizer.stop()
         recognitionStatus = .ready
-        FeedbackSounds.play(.yourTurn, enabled: settings.feedbackSounds)
+        let soundsEnabled = settings.feedbackSounds
 
         autoContinueTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(ReadAloudFlow.readyDelay))
+            let readyUntil = ContinuousClock.now + .seconds(ReadAloudFlow.readyDelay)
+            await FeedbackSounds.playAndWait(.yourTurn, enabled: soundsEnabled)
+            try? await Task.sleep(for: .seconds(ReadAloudFlow.chimeToMicGap))
+            try? await Task.sleep(until: readyUntil, clock: .continuous)
             guard !Task.isCancelled, let self, self.engine.activeTile?.id == tile.id else { return }
             self.startListening(for: tile)
         }
@@ -288,6 +301,12 @@ final class CarpetReadingViewModel: ObservableObject {
 
     private func completeActiveTile(continueListening: Bool, rating: TileRating? = nil) {
         matchedTileID = nil
+        // The finished carpet keeps its last tile active; completing it again must not record a second run.
+        guard !engine.isCompleted else {
+            isContinuousReadingActive = false
+            recognitionStatus = .idle
+            return
+        }
         let finishedCarpet = engine.markCurrentTileCompleted(autoAdvance: settings.autoAdvanceOnMatch, rating: rating)
 
         if finishedCarpet {

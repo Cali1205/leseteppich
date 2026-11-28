@@ -65,17 +65,21 @@ public struct ReadingSessionEngine: Equatable, Sendable {
     }
 
     /// `rating` nil derives it from the failed attempts: `.firstTry` without any, else `.afterRetry`.
+    /// A tile keeps the rating of its first completion in a run. Returns true only on the call that completes the carpet.
     @discardableResult
     public mutating func markCurrentTileCompleted(autoAdvance: Bool = true, rating: TileRating? = nil) -> Bool {
         guard let tile = activeTile else { return false }
+        let wasCompleted = isCompleted
         completedTileIDs.insert(tile.id)
-        ratings[tile.id] = rating ?? (failedAttemptsOnCurrentTile == 0 ? .firstTry : .afterRetry)
+        if ratings[tile.id] == nil {
+            ratings[tile.id] = rating ?? (failedAttemptsOnCurrentTile == 0 ? .firstTry : .afterRetry)
+        }
         failedAttemptsOnCurrentTile = 0
 
         if autoAdvance {
             advanceToNextIncompleteTile()
         }
-        return isCompleted
+        return !wasCompleted && isCompleted
     }
 
     public mutating func recordFailedAttempt() {

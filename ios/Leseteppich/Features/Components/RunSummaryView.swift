@@ -48,9 +48,9 @@ struct RunSummaryView: View {
                                 .scaleEffect(
                                     reduceMotion
                                         ? 1.0
-                                        : (isEarned ? (isRevealed ? 1.0 : 0.6) : 0.95)
+                                        : (isRevealed ? (isEarned ? 1.0 : 0.95) : 0.6)
                                 )
-                                .opacity(isEarned ? (isRevealed ? 1.0 : 0.15) : 0.65)
+                                .opacity(isRevealed ? (isEarned ? 1.0 : 0.65) : 0.0)
                                 .animation(
                                     reduceMotion ? nil : .spring(duration: 0.35, bounce: 0.35),
                                     value: revealedStarCount

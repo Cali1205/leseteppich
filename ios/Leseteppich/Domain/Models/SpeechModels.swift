@@ -31,13 +31,12 @@ public enum SpeechRecognitionStatus: Equatable, Sendable {
     case retryNeeded(reason: RetryReason)
     /// After `ReadAloudFlow.failedAttemptsBeforeHelp` failed attempts on the same tile: the auto-loop is paused.
     case needsHelp
-    case preparingNext
     case unavailable(message: String)
 
     /// True while the read-aloud loop moves on by itself, including outcome holds that continue automatically.
     public var isAutoLoopRunning: Bool {
         switch self {
-        case .ready, .listening, .evaluating, .matched, .retryNeeded, .preparingNext:
+        case .ready, .listening, .evaluating, .matched, .retryNeeded:
             return true
         case .idle, .needsHelp, .unavailable:
             return false
@@ -47,8 +46,10 @@ public enum SpeechRecognitionStatus: Equatable, Sendable {
 
 /// Timings and rules of the "read aloud → get rated" loop shared by carpet and dice reading.
 public enum ReadAloudFlow {
-    /// Pause between the "your turn" chime and opening the mic.
+    /// Minimum time `.ready` ("Lies vor!") is shown before the mic opens.
     public static let readyDelay: TimeInterval = 0.8
+    /// Silence between the end of the "your turn" chime and opening the mic, so its tail isn't recorded.
+    public static let chimeToMicGap: TimeInterval = 0.15
     /// Minimum time `.evaluating` stays visible so it doesn't just flicker.
     public static let minEvaluatingDuration: TimeInterval = 0.35
     /// How long `.matched` is shown before moving on.

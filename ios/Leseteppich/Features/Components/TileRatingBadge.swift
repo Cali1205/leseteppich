@@ -11,18 +11,16 @@ struct TileRatingBadge: View {
             case .firstTry:
                 Text("⭐")
                     .font(.system(size: fontSize))
-                    .accessibilityLabel("Beim ersten Mal")
             case .afterRetry:
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: fontSize, weight: .bold))
                     .foregroundStyle(.green)
-                    .accessibilityLabel("Nach Üben geschafft")
             case .practiced:
                 Text("💪")
                     .font(.system(size: fontSize))
-                    .accessibilityLabel("Geübt")
             }
         }
+        .accessibilityLabel(rating.accessibilityText)
     }
 }
 

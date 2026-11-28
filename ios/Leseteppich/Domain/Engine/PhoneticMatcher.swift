@@ -126,6 +126,7 @@ public struct PhoneticMatcher: Sendable {
         var bestScore = 0.0
         if strictness != .strict {
             let threshold: Double = (strictness == .gentle) ? 0.75 : 0.84
+            var bestMatchScore = 0.0
             var bestHyp: String?
 
             for rawHyp in hypotheses {
@@ -134,22 +135,24 @@ public struct PhoneticMatcher: Sendable {
                 for target in candidateTargets {
                     let targetKey = phoneticKey(of: target, softConsonants: allowSoftConsonants)
                     // Avoid false positives on 1-2 letter syllables like "ma" vs "so"
-                    guard targetKey.count >= 4 else { continue }
+                    guard targetKey.count >= 3 else { continue }
                     for part in hypParts {
                         let partKey = phoneticKey(of: part, softConsonants: allowSoftConsonants)
                         let score = similarity(partKey, targetKey)
-                        if score > bestScore {
-                            bestScore = score
+                        bestScore = max(bestScore, score)
+                        // 3-letter keys only feed the "almost" confidence; fuzzy-accepting them would be too loose.
+                        if targetKey.count >= 4 && score > bestMatchScore {
+                            bestMatchScore = score
                             bestHyp = rawHyp
                         }
                     }
                 }
             }
 
-            if bestScore >= threshold, let matched = bestHyp {
+            if bestMatchScore >= threshold, let matched = bestHyp {
                 return RecognitionMatchResult(
                     isMatch: true,
-                    confidence: bestScore,
+                    confidence: bestMatchScore,
                     matchedHypothesis: matched,
                     reason: "fuzzy_phonetic"
                 )
